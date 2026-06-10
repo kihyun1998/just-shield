@@ -1,7 +1,5 @@
 # Issue tracker: GitHub
 
-> **Note:** This repo is not yet a git repository with a GitHub remote. Until `git init` is run and a GitHub remote is added, `gh` commands will fail — flag this to the user instead of silently erroring.
-
 Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
 ## Conventions
