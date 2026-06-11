@@ -1,0 +1,15 @@
+# 출처: GitHub 공식 액션만 태그로 쓰는 흔한 소규모 프로젝트를 본뜬 양성 픽스처.
+# 공식 액션의 태그 참조는 🔵 권고까지만 — 🔴 오탐이 나면 안 된다 (질문 6의 결정).
+name: CI
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pytest

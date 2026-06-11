@@ -1,0 +1,2 @@
+# 가짜 GitHub 응답: 태그가 박제본과 다른 커밋을 가리킨다 — 하이재킹 발생.
+resolve aquasecurity/trivy-action@0.28.0 ffff000000000000000000000000000000000000

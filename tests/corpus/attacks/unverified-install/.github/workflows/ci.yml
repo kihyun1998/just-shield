@@ -1,0 +1,12 @@
+# 재현: TeamPCP Trivy 릴리스 바이너리 교체 통로 — 검증 없는 다운로드 실행(R3)과
+# 다이제스트 없는 이미지(R4). 배포 서버가 오염되면 그대로 악성 코드가 실행된다.
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    container: tooling:latest
+    steps:
+      - run: curl -sSL https://get.example.com/install.sh | bash

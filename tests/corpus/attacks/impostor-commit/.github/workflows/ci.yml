@@ -1,0 +1,13 @@
+# 재현: TeamPCP 2026-03-19 Trivy "임포스터 커밋" 공격 — 포크에 숨긴 악성 커밋을
+# 핀/태그에 꽂아, SHA로 핀했어도 정식 히스토리에 없는 코드가 실행되게 함.
+# R5(--online)가 도달 불가 커밋을 잡아야 한다. facts.txt가 가짜 GitHub 응답을 제공한다.
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: aquasecurity/trivy-action@deadbeefdeadbeefdeadbeefdeadbeefdeadbeef

@@ -1,0 +1,3 @@
+# 가짜 GitHub 응답: 악성 SHA는 정식 히스토리에서 도달 불가, checkout SHA는 정상.
+reachable deadbeefdeadbeefdeadbeefdeadbeefdeadbeef false
+reachable df4cb1c069e1874edd31b4311f1884172cec0e10 true

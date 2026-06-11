@@ -103,8 +103,10 @@ cooldown-days 14
 ## 개발
 
 ```bash
-cargo test     # 유닛 + 통합 테스트
+cargo test     # 유닛 + 통합 + 채점표 코퍼스 (릴리스 게이트)
 cargo clippy   # 린트
 ```
+
+**채점표 게이트** (`tests/corpus/`, ADR-0002 원칙 ④): TeamPCP 캠페인을 재현한 공격 코퍼스는 전부 탐지돼야 하고(미탐 0), 실제 워크플로를 본뜬 양성 코퍼스에서 🔴 오탐이 하나도 없어야 한다. CI는 마지막에 just-shield로 자기 저장소를 검사한다(dogfood). 코퍼스 추가 절차는 [tests/corpus/README.md](tests/corpus/README.md).
 
 모든 판정은 사실 기반이어야 한다 — 빌드를 깨뜨리는 🔴는 검증 가능한 사실에서만 나온다 ([ADR-0002](docs/adr/0002-fact-based-verdicts.md)).
