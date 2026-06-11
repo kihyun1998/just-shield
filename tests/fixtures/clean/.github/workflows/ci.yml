@@ -1,0 +1,9 @@
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567 # v4
+      - uses: ./.github/actions/local-helper
+      - run: cargo test
