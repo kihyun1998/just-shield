@@ -1,0 +1,15 @@
+# 재현: TeamPCP 자격증명 수확 구조 — 시크릿이 노출된 잡(R6), permissions 미선언으로
+# 광범위 토큰(R7), pull_request_target + 외부 PR 체크아웃으로 외부인 코드가 시크릿
+# 환경에서 실행 가능(R8). KICS/Trivy 오염 페이로드가 털어간 환경이 정확히 이 모양이었다.
+name: pr-scan
+on: pull_request_target
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: some-vendor/scanner@0123456789abcdef0123456789abcdef01234567
+        env:
+          CLOUD_KEY: ${{ secrets.CLOUD_KEY }}

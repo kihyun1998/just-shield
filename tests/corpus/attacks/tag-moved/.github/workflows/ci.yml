@@ -1,0 +1,12 @@
+# 재현: TeamPCP 태그 하이재킹의 시점 간 탐지 — 박제(shield.lock) 시점의 SHA와
+# 현재 태그가 가리키는 SHA가 다르다. 정확 버전 태그(0.28.0)는 정상 상황에서
+# 움직이지 않으므로, LOCK 규칙이 이동을 🔴로 잡아야 한다 (ADR-0003).
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@0.28.0

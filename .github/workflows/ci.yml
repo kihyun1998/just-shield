@@ -1,0 +1,22 @@
+# just-shield 자체 CI — 채점표 게이트 (ADR-0002 원칙 ④).
+# cargo test가 미탐 코퍼스(attacks)·오탐 코퍼스(benign)를 포함하므로
+# 이 워크플로의 초록불이 곧 릴리스 자격이다.
+# 마지막 스텝은 just-shield가 자기 저장소를 자기 규칙으로 검사한다 (dogfood).
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: 채점표 게이트 (유닛 + 통합 + 코퍼스)
+        run: cargo test
+      - name: 자기 검사 (dogfood)
+        run: cargo run --quiet -- scan . --strict

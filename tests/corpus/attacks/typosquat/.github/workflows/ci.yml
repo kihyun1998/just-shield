@@ -1,0 +1,12 @@
+# 재현: TeamPCP의 타이포스쿼팅 위장 — 유출 도메인 scan.aquasecurtiy[.]org처럼
+# 인접 글자를 맞바꾼 이름. SHA로 핀해도 짝퉁 저장소 자체가 악성이므로
+# R2가 이름 유사도를 안내해야 한다.
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurtiy/trivy-action@0123456789abcdef0123456789abcdef01234567
