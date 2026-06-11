@@ -258,6 +258,48 @@ pub fn check_r7(file: &Path, doc: &WorkflowDoc) -> Vec<Finding> {
     out
 }
 
+/// R9 — 알려진 감염 버전 대조 (동봉 권고 DB, 오프라인, 🔴).
+///
+/// 공개 권고 등재 여부는 사실이다. 알려진 악성 버전은 소유자 신뢰와 무관하게
+/// 절대적으로 위험하므로 신뢰 분류를 적용하지 않는다.
+pub fn check_r9(
+    file: &Path,
+    entries: &[UsesEntry],
+    db: &crate::advisory::AdvisoryDb,
+) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for e in entries {
+        let UsesRef::Repository {
+            owner_repo,
+            git_ref: Some(git_ref),
+        } = uses_ref::parse(&e.value)
+        else {
+            continue;
+        };
+        let git_ref = match &git_ref {
+            RefKind::CommitSha(s) => s.as_str(),
+            RefKind::Mutable(r) => r.as_str(),
+        };
+        let repo = uses_ref::repo_root(&owner_repo);
+        let Some(advisory) = db.lookup(repo, git_ref) else {
+            continue;
+        };
+        out.push(Finding {
+            rule: "R9",
+            severity: Severity::High,
+            file: file.display().to_string(),
+            line: e.line,
+            uses: e.value.clone(),
+            evidence: format!(
+                "이 버전은 공개 보안 권고에 악성으로 등재되어 있습니다 — {}: {}",
+                advisory.source, advisory.note
+            ),
+            fix_hint: "즉시 제거/교체하고, 이 버전이 실행된 기간의 CI 로그와 시크릿 노출을 점검하세요 (이미 실행됐다면 사후 대응 필요)".into(),
+        });
+    }
+    out
+}
+
 /// R5 — 임포스터 커밋 검증 (`--online`, 🔴).
 ///
 /// 핀된 SHA가 그 저장소의 정식 히스토리에서 도달 가능한가는 조회 가능한 사실이다.

@@ -240,6 +240,49 @@ fn images_without_digest_are_medium() {
 }
 
 #[test]
+fn known_compromised_version_is_flagged_offline_from_bundled_db() {
+    // 완전 오프라인 scan() — 동봉 스냅숏만으로 알려진 악성 버전을 잡아야 한다.
+    let result = just_shield::scan(Path::new("tests/fixtures/advisory")).unwrap();
+    let r9: Vec<_> = result.findings.iter().filter(|f| f.rule == "R9").collect();
+
+    assert_eq!(r9.len(), 1, "등재된 SHA만 — 등재 안 된 SHA는 침묵");
+    assert_eq!(r9[0].line, 10);
+    assert_eq!(r9[0].severity, Severity::High);
+    assert!(
+        r9[0].evidence.contains("CVE-2025-30066"),
+        "근거에 권고 출처가 표시돼야 한다"
+    );
+    assert_eq!(just_shield::report::exit_code(&result, false), 1);
+}
+
+#[test]
+fn teampcp_style_advisory_entries_match_tags_and_shas() {
+    // TeamPCP 사례를 본뜬 권고 항목 — KICS(태그 하이재킹), Trivy(임포스터 커밋) 형태.
+    let db = just_shield::advisory::AdvisoryDb::parse(
+        "checkmarx/kics-github-action@aaaa000000000000000000000000000000000000 GHSA-fake-kics 2026-03 태그 하이재킹 오염 커밋\n\
+         aquasecurity/trivy-action@v0.99.0 GHSA-fake-trivy 오염된 릴리스 태그\n",
+    );
+    let entries = just_shield::workflow::extract_uses_entries(
+        "      - uses: checkmarx/kics-github-action@aaaa000000000000000000000000000000000000\n      - uses: aquasecurity/trivy-action@v0.99.0\n      - uses: aquasecurity/trivy-action@v0.28.0\n",
+    );
+    let findings = just_shield::rules::check_r9(Path::new("ci.yml"), &entries, &db);
+
+    // SHA 등재·태그 등재 모두 매칭, 미등재 버전은 침묵.
+    assert_eq!(findings.len(), 2);
+    assert!(findings.iter().all(|f| f.severity == Severity::High));
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.evidence.contains("GHSA-fake-kics"))
+    );
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.evidence.contains("GHSA-fake-trivy"))
+    );
+}
+
+#[test]
 fn json_output_for_clean_repo_is_pinned_snapshot() {
     // 스키마 고정: 이 스냅숏이 깨지면 의도적 스키마 변경인지 확인하고 version을 올릴 것.
     let result = just_shield::scan(Path::new("tests/fixtures/clean")).unwrap();
