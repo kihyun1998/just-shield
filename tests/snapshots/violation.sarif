@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "just-shield",
+          "version": "{VERSION}",
+          "informationUri": "https://github.com/kihyun1998/just-shield",
+          "rules": [
+            { "id": "R1", "shortDescription": { "text": "서드파티 액션의 가변 참조(태그/브랜치) — 태그 하이재킹에 노출" } },
+            { "id": "R2", "shortDescription": { "text": "유명 액션과 한 글자 차이 — 타이포스쿼팅 의심" } },
+            { "id": "R3", "shortDescription": { "text": "curl | sh류 미검증 파이프 설치" } },
+            { "id": "R4", "shortDescription": { "text": "다이제스트 없는 컨테이너 이미지 참조" } },
+            { "id": "R5", "shortDescription": { "text": "핀된 SHA가 저장소 정식 히스토리에서 도달 불가 — 임포스터 커밋" } },
+            { "id": "R6", "shortDescription": { "text": "시크릿을 쓰는 잡에서 서드파티 액션 실행" } },
+            { "id": "R7", "shortDescription": { "text": "permissions 미선언 또는 write-all" } },
+            { "id": "R8", "shortDescription": { "text": "위험 트리거(pull_request_target 등)와 외부 PR 체크아웃 조합" } },
+            { "id": "R9", "shortDescription": { "text": "공개 권고에 악성으로 등재된 버전/커밋 사용" } },
+            { "id": "R10", "shortDescription": { "text": "발행 후 쿨다운(검증 기간) 미경과 참조" } },
+            { "id": "LOCK", "shortDescription": { "text": "shield.lock 박제본 대비 태그 이동" } }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "R1",
+          "ruleIndex": 0,
+          "level": "note",
+          "message": { "text": "uses: actions/checkout@v4 — `@v4`은(는) 태그/브랜치 — 공격자가 다른 커밋으로 옮겨 꽂을 수 있는 가변 참조입니다 (GitHub 공식 액션이라 완화 등급 — 그래도 SHA 핀 고정을 권고합니다) — 해결: 커밋 SHA로 핀 고정 — uses: actions/checkout@<40자리 커밋 SHA>  # 원래 버전을 주석으로" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": ".github/workflows/ci.yml" }, "region": { "startLine": 9 } } }]
+        },
+        {
+          "ruleId": "R1",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": { "text": "uses: aquasecurity/trivy-action@master — `@master`은(는) 태그/브랜치 — 공격자가 다른 커밋으로 옮겨 꽂을 수 있는 가변 참조입니다 (TeamPCP는 이 방식으로 Trivy 태그 76개를 하이재킹했습니다) — 해결: 커밋 SHA로 핀 고정 — uses: aquasecurity/trivy-action@<40자리 커밋 SHA>  # 원래 버전을 주석으로" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": ".github/workflows/ci.yml" }, "region": { "startLine": 10 } } }]
+        },
+        {
+          "ruleId": "R4",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": { "text": "uses: docker://alpine:3.19 — `alpine:3.19`은(는) 다이제스트 없는 이미지 참조 — 태그는 같은 이름으로 내용물이                  바뀔 수 있는 가변 참조입니다 — 해결: 다이제스트로 고정 — alpine:3.19@sha256:<다이제스트>" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": ".github/workflows/ci.yml" }, "region": { "startLine": 13 } } }]
+        },
+        {
+          "ruleId": "R1",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": { "text": "uses: telnyx/setup-telnyx@release — `@release`은(는) 태그/브랜치 — 공격자가 다른 커밋으로 옮겨 꽂을 수 있는 가변 참조입니다 (TeamPCP는 이 방식으로 Trivy 태그 76개를 하이재킹했습니다) — 해결: 커밋 SHA로 핀 고정 — uses: telnyx/setup-telnyx@<40자리 커밋 SHA>  # 원래 버전을 주석으로" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": ".github/workflows/ci.yml" }, "region": { "startLine": 17 } } }]
+        },
+        {
+          "ruleId": "R1",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": { "text": "uses: orphan/no-ref — 참조(@버전)가 없습니다 — 기본 브랜치를 그대로 따라가는 가변 참조입니다 (TeamPCP는 이 방식으로 Trivy 태그 76개를 하이재킹했습니다) — 해결: 커밋 SHA로 핀 고정 — uses: orphan/no-ref@<40자리 커밋 SHA>  # 원래 버전을 주석으로" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": ".github/workflows/ci.yml" }, "region": { "startLine": 18 } } }]
+        }
+      ]
+    }
+  ]
+}
