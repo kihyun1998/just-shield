@@ -259,6 +259,39 @@ fn parse_steps(lines: &[Line]) -> Vec<Step> {
     steps
 }
 
+/// 컨테이너 이미지 참조(`image:` 값, 인라인 `container:` 값)를 행 번호와 함께 추출한다.
+/// `${{ ... }}` 표현식은 값을 알 수 없으므로 판정 대상에서 제외한다 (추측 금지).
+pub fn extract_image_refs(content: &str) -> Vec<UsesEntry> {
+    content
+        .lines()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            let t = line.trim_start();
+            if t.starts_with('#') {
+                return None;
+            }
+            let rest = match t.strip_prefix('-') {
+                Some(r) => r.trim_start(),
+                None => t,
+            };
+            let rest = rest
+                .strip_prefix("image:")
+                .or_else(|| rest.strip_prefix("container:"))?;
+            if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+                return None;
+            }
+            if rest.contains("${{") {
+                return None;
+            }
+            let value = scalar_value(rest.trim_start())?;
+            Some(UsesEntry {
+                line: idx + 1,
+                value,
+            })
+        })
+        .collect()
+}
+
 /// 한 행에서 `uses:` 값을 추출한다. 주석 행과 `uses:`가 아닌 행은 None.
 pub fn extract_uses_value(line: &str) -> Option<String> {
     let trimmed = line.trim_start();
@@ -275,7 +308,11 @@ pub fn extract_uses_value(line: &str) -> Option<String> {
     if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
         return None;
     }
-    let rest = rest.trim_start();
+    scalar_value(rest.trim_start())
+}
+
+/// 따옴표·행 끝 주석을 처리해 스칼라 값만 꺼낸다.
+fn scalar_value(rest: &str) -> Option<String> {
     if rest.is_empty() {
         return None;
     }

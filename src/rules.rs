@@ -91,6 +91,80 @@ pub fn check_r1(file: &Path, entries: &[UsesEntry], ctx: &TrustContext) -> Vec<F
     out
 }
 
+/// R3 — 무결성 검증 없는 파이프 설치(`curl ... | sh`) 탐지.
+///
+/// 셸 명령 해석은 본질적으로 휴리스틱이므로 ADR-0002에 따라 단독 판정은 🔵 상한.
+/// 체크섬 검증(sha256sum 등)이 동반된 스텝은 침묵한다.
+pub fn check_r3(file: &Path, doc: &WorkflowDoc) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for job in &doc.jobs {
+        for step in &job.steps {
+            let pipe_install = step
+                .text
+                .lines()
+                .any(|l| (l.contains("curl") || l.contains("wget")) && pipes_to_shell(l));
+            if !pipe_install {
+                continue;
+            }
+            let verified = step.text.contains("sha256sum") || step.text.contains("shasum");
+            if verified {
+                continue;
+            }
+            out.push(Finding {
+                rule: "R3",
+                severity: Severity::Info,
+                file: file.display().to_string(),
+                line: step.line,
+                uses: String::new(),
+                evidence: "다운로드한 스크립트를 검증 없이 바로 실행하는 패턴으로 보입니다 —                            배포 서버가 오염되면 그대로 악성 코드가 실행됩니다 (Trivy식 바이너리 교체 통로).                            셸 해석은 휴리스틱이므로 안내 등급에 머뭅니다"
+                    .into(),
+                fix_hint: "다운로드 후 sha256sum 등으로 체크섬을 검증하고 실행하세요".into(),
+            });
+        }
+    }
+    out
+}
+
+/// `|` 뒤의 첫 명령이 셸인가 — `| shasum`(검증)을 `| sh`로 오인하지 않도록 토큰 단위로 본다.
+fn pipes_to_shell(line: &str) -> bool {
+    line.split('|').skip(1).any(|seg| {
+        let cmd = seg.split_whitespace().next().unwrap_or("");
+        matches!(cmd, "sh" | "bash" | "sudo") || cmd.ends_with("/sh") || cmd.ends_with("/bash")
+    })
+}
+
+/// R4 — 다이제스트 없는 컨테이너 이미지 참조 (🟡).
+///
+/// 다이제스트(`@sha256:`)의 유무는 문법적 사실이다. 태그는 내용물이 바뀔 수 있다.
+pub fn check_r4(file: &Path, entries: &[UsesEntry], images: &[UsesEntry]) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let docker_uses = entries.iter().filter_map(|e| {
+        e.value
+            .strip_prefix("docker://")
+            .map(|img| (e.line, img.to_string(), e.value.clone()))
+    });
+    let image_keys = images
+        .iter()
+        .map(|e| (e.line, e.value.clone(), e.value.clone()));
+    for (line, image, raw) in docker_uses.chain(image_keys) {
+        if image.contains("@sha256:") {
+            continue;
+        }
+        out.push(Finding {
+            rule: "R4",
+            severity: Severity::Medium,
+            file: file.display().to_string(),
+            line,
+            uses: raw,
+            evidence: format!(
+                "`{image}`은(는) 다이제스트 없는 이미지 참조 — 태그는 같은 이름으로 내용물이                  바뀔 수 있는 가변 참조입니다"
+            ),
+            fix_hint: format!("다이제스트로 고정 — {image}@sha256:<다이제스트>"),
+        });
+    }
+    out
+}
+
 /// R6 — 시크릿을 사용하는 잡에서 서드파티 액션 실행 (🟡).
 ///
 /// 액션 코드는 같은 잡의 시크릿에 접근 가능한 환경에서 돈다 — 오염되면 함께 털린다.
