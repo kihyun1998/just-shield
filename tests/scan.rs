@@ -12,7 +12,7 @@ fn detects_mutable_refs_with_file_and_line() {
     // 가변 참조 4건: @v4, @master, @release, 참조 없음.
     // SHA 핀 2건, 로컬, docker://, 주석 처리 행은 침묵해야 한다.
     let lines: Vec<usize> = result.findings.iter().map(|f| f.line).collect();
-    assert_eq!(lines, vec![7, 8, 15, 16]);
+    assert_eq!(lines, vec![9, 10, 17, 18]);
 
     for f in &result.findings {
         assert_eq!(f.rule, "R1");
@@ -72,7 +72,7 @@ fn same_owner_actions_are_first_party_and_silent() {
     .unwrap();
     std::fs::write(
         root.join(".github").join("workflows").join("ci.yml"),
-        "jobs:\n  b:\n    steps:\n      - uses: myorg/internal-action@v1\n      - uses: evil/other-action@v1\n",
+        "on: push\npermissions:\n  contents: read\njobs:\n  b:\n    steps:\n      - uses: myorg/internal-action@v1\n      - uses: evil/other-action@v1\n",
     )
     .unwrap();
 
@@ -83,6 +83,58 @@ fn same_owner_actions_are_first_party_and_silent() {
     assert_eq!(result.findings.len(), 1);
     assert!(result.findings[0].uses.starts_with("evil/"));
     assert_eq!(result.findings[0].severity, Severity::High);
+}
+
+#[test]
+fn blast_radius_rules_fire_together() {
+    let result = just_shield::scan(Path::new("tests/fixtures/blast")).unwrap();
+    let by_rule = |r: &str| -> Vec<_> { result.findings.iter().filter(|f| f.rule == r).collect() };
+
+    // R1: 전부 SHA 핀이라 침묵.
+    assert!(by_rule("R1").is_empty());
+
+    // R8 🔴: pull_request_target + 외부 PR head 체크아웃 조합.
+    let r8 = by_rule("R8");
+    assert_eq!(r8.len(), 1);
+    assert_eq!(r8[0].severity, Severity::High);
+
+    // R6 🟡: 시크릿 쓰는 잡의 서드파티 액션 (공식 checkout은 대상 아님).
+    let r6 = by_rule("R6");
+    assert_eq!(r6.len(), 1);
+    assert_eq!(r6[0].severity, Severity::Medium);
+    assert!(r6[0].uses.starts_with("evil/"));
+
+    // R7 🟡: permissions 미선언.
+    let r7 = by_rule("R7");
+    assert_eq!(r7.len(), 1);
+    assert_eq!(r7[0].severity, Severity::Medium);
+
+    for f in &result.findings {
+        assert!(!f.evidence.is_empty());
+        assert!(!f.fix_hint.is_empty());
+    }
+
+    // 🔴(R8)이 있으므로 기본 모드에서도 빌드 실패.
+    assert_eq!(just_shield::report::exit_code(&result, false), 1);
+}
+
+#[test]
+fn write_all_permissions_is_flagged() {
+    let result = just_shield::scan(Path::new("tests/fixtures/writeall")).unwrap();
+    let r7: Vec<_> = result.findings.iter().filter(|f| f.rule == "R7").collect();
+    assert_eq!(r7.len(), 1);
+    assert_eq!(r7[0].severity, Severity::Medium);
+    assert!(r7[0].evidence.contains("write-all"));
+    // 🟡뿐이므로 기본 통과, --strict에서 실패.
+    assert_eq!(just_shield::report::exit_code(&result, false), 0);
+    assert_eq!(just_shield::report::exit_code(&result, true), 1);
+}
+
+#[test]
+fn declared_minimal_permissions_silence_r7() {
+    // clean 픽스처는 워크플로 수준 contents: read 선언 — R6·R7·R8 모두 침묵해야 한다.
+    let result = just_shield::scan(Path::new("tests/fixtures/clean")).unwrap();
+    assert!(result.findings.is_empty());
 }
 
 #[test]

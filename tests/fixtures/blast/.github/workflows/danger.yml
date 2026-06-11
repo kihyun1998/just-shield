@@ -1,0 +1,12 @@
+name: PR target danger
+on: pull_request_target
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: evil/scanner@0123456789abcdef0123456789abcdef01234567
+        env:
+          TOKEN: ${{ secrets.DEPLOY_TOKEN }}
