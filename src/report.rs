@@ -32,7 +32,9 @@ pub fn render(result: &ScanResult, strict: bool) -> String {
             f.file,
             f.line
         ));
-        s.push_str(&format!("   uses: {}\n", f.uses));
+        if !f.uses.is_empty() {
+            s.push_str(&format!("   uses: {}\n", f.uses));
+        }
         s.push_str(&format!("   근거: {}\n", f.evidence));
         s.push_str(&format!("   해결: {}\n\n", f.fix_hint));
     }
