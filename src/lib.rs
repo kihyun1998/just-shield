@@ -3,6 +3,7 @@
 //! CLI(`main.rs`)는 이 라이브러리를 호출하는 얇은 껍데기다 (ADR-0004, 엔진/포장 분리).
 //! 모든 판정은 사실 기반이어야 한다 (ADR-0002) — 추측으로 빌드를 깨뜨리지 않는다.
 
+pub mod advisory;
 pub mod config;
 pub mod fix;
 pub mod github_facts;
@@ -75,6 +76,7 @@ pub fn scan_with_options(root: &Path, options: &ScanOptions) -> std::io::Result<
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     let ctx = trust::TrustContext::new(trust::detect_repo_owner(root), loaded.trusted_owners);
+    let advisories = advisory::AdvisoryDb::bundled();
     let lockfile = lockfile::load(root)?;
     let workflows = workflow::find_workflows(root)?;
     let mut findings = Vec::new();
@@ -94,6 +96,7 @@ pub fn scan_with_options(root: &Path, options: &ScanOptions) -> std::io::Result<
         file_findings.extend(rules::check_r6(rel, &doc, &ctx));
         file_findings.extend(rules::check_r7(rel, &doc));
         file_findings.extend(rules::check_r8(rel, &doc));
+        file_findings.extend(rules::check_r9(rel, &entries, &advisories));
         if let Some(lf) = &lockfile {
             file_findings.extend(rules::check_lock(rel, &entries, lf, facts, &ctx));
         }
