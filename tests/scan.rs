@@ -152,6 +152,7 @@ fn strict_promotes_medium_to_failure() {
             fix_hint: "합성 픽스처".into(),
         }],
         suppressed: vec![],
+        online_rules_skipped: false,
     };
     assert_eq!(just_shield::report::exit_code(&medium_only, false), 0);
     assert_eq!(just_shield::report::exit_code(&medium_only, true), 1);

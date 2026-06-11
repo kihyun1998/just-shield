@@ -16,6 +16,8 @@ pub const FILE_NAME: &str = ".just-shield.conf";
 pub struct Config {
     /// 퍼스트파티로 취급할 액션 소유자(org/계정) 목록.
     pub trusted_owners: Vec<String>,
+    /// R10 쿨다운 기준 일수. None이면 기본값(7일).
+    pub cooldown_days: Option<u32>,
 }
 
 /// 설정을 읽는다. 파일이 없으면 기본값 — 오류가 아니다.
@@ -36,6 +38,8 @@ pub fn load(root: &Path) -> io::Result<Config> {
             if !owner.is_empty() {
                 config.trusted_owners.push(owner.to_string());
             }
+        } else if let Some(days) = line.strip_prefix("cooldown-days") {
+            config.cooldown_days = days.trim().parse().ok();
         }
         // 알 수 없는 선언은 미래 버전과의 호환을 위해 조용히 무시한다.
     }
