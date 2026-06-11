@@ -91,6 +91,64 @@ pub fn check_r1(file: &Path, entries: &[UsesEntry], ctx: &TrustContext) -> Vec<F
     out
 }
 
+/// R2 — 타이포스쿼팅 의심 (기본 🔵, `--online` 교차 검증으로만 격상).
+///
+/// 이름 유사도는 휴리스틱이므로 오프라인 단독 판정은 🔵 상한 (ADR-0002).
+/// 격상 조건은 보수적이다: 의심 저장소는 태그가 거의 없고(≤2) 원본은 풍부(≥10)할 때만.
+/// 애매하면 🔵에 머문다.
+pub fn check_r2(
+    file: &Path,
+    entries: &[UsesEntry],
+    ctx: &TrustContext,
+    facts: Option<&dyn GithubFacts>,
+) -> Vec<Finding> {
+    let popular = crate::typosquat::bundled_popular();
+    let mut out = Vec::new();
+    for e in entries {
+        let UsesRef::Repository { owner_repo, .. } = uses_ref::parse(&e.value) else {
+            continue;
+        };
+        if ctx.classify(&owner_repo) == Trust::FirstParty {
+            continue;
+        }
+        let repo = uses_ref::repo_root(&owner_repo).to_string();
+        let Some(original) = crate::typosquat::similar_popular(&repo, &popular) else {
+            continue;
+        };
+        let base_evidence = format!(
+            "`{repo}`은(는) 유명 액션 `{original}`과(와) 한 글자 차이입니다 —              타이포스쿼팅 위장의 흔한 형태 (TeamPCP는 aquasecurtiy.org 도메인을 썼습니다)"
+        );
+        // 교차 검증: 의심본이 무명(태그 ≤2)이고 원본이 유명(태그 ≥10)할 때만 격상.
+        let corroborated = facts.and_then(|f| {
+            let suspect = f.ref_count(&repo).ok()??;
+            let orig = f.ref_count(&original).ok()??;
+            (suspect <= 2 && orig >= 10).then_some((suspect, orig))
+        });
+        let (severity, evidence) = match corroborated {
+            Some((suspect, orig)) => (
+                Severity::High,
+                format!(
+                    "{base_evidence}. 교차 검증: 의심 저장소는 버전 태그 {suspect}개(무명),                      `{original}`은 {orig}개 — 증거가 모여 격상"
+                ),
+            ),
+            None => (
+                Severity::Info,
+                format!("{base_evidence}. 이름 유사도는 휴리스틱이므로 안내 등급입니다"),
+            ),
+        };
+        out.push(Finding {
+            rule: "R2",
+            severity,
+            file: file.display().to_string(),
+            line: e.line,
+            uses: e.value.clone(),
+            evidence,
+            fix_hint: format!("의도한 액션이 `{original}`인지 철자를 확인하세요"),
+        });
+    }
+    out
+}
+
 /// R3 — 무결성 검증 없는 파이프 설치(`curl ... | sh`) 탐지.
 ///
 /// 셸 명령 해석은 본질적으로 휴리스틱이므로 ADR-0002에 따라 단독 판정은 🔵 상한.
