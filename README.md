@@ -41,6 +41,7 @@ just-shield scan [경로]              # 워크플로 검사 (기본: 현재 디
 just-shield scan . --strict         # 🟡(중간)도 빌드 실패로 승격
 just-shield scan . --online         # shield.lock 대조 등 네트워크 검사 활성화
 just-shield scan . --format json    # 기계용 JSON 출력
+just-shield scan . --format sarif   # SARIF 2.1.0 — GitHub 코드 스캐닝 업로드용
 just-shield lock [경로]              # 태그→SHA를 shield.lock으로 박제 (네트워크 필요)
 just-shield fix [경로]               # 가변 참조를 SHA로 자동 교체 + 버전 주석 (네트워크 필요)
 just-shield fix [경로] --dry-run     # 교체 내용을 적용 없이 미리보기
@@ -129,6 +130,23 @@ cooldown-days 14
 - `file`: 플랫폼과 무관하게 `/` 구분자로 정규화
 - `exit_code`: 해당 실행의 종료 코드와 동일 (`--strict` 반영)
 - `findings`: (file, line, rule) 순 정렬 — 같은 입력이면 같은 순서
+
+## SARIF 출력
+
+`--format sarif`는 [SARIF 2.1.0](https://docs.github.com/en/code-security/code-scanning) 형식으로 출력한다 — GitHub 코드 스캐닝에 업로드하면 경고가 PR의 해당 코드 줄 위에 직접 표시된다.
+
+- 심각도 매핑: 🔴 → `error`, 🟡 → `warning`, 🔵 → `note`
+- 무시 주석으로 수용된 발견은 결과에서 사라지지 않고 SARIF `suppressions`(사유 포함)로 표현된다 (침묵 ≠ 은폐)
+- 종료 코드는 텍스트/JSON 모드와 동일 — 출력 형식이 판정을 바꾸지 않는다
+- 출력 전체가 스냅숏 테스트(`tests/snapshots/violation.sarif`)로 고정된다
+
+```yaml
+# GitHub Actions에서 코드 스캐닝으로 업로드하는 예 (Action 래퍼가 이를 내장할 예정)
+- run: just-shield scan . --format sarif > results.sarif || true
+- uses: github/codeql-action/upload-sarif@<커밋 SHA>  # 버전 주석
+  with:
+    sarif_file: results.sarif
+```
 
 ## 개발
 
