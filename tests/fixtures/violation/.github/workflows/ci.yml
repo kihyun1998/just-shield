@@ -1,0 +1,16 @@
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: "aquasecurity/trivy-action@master"
+      - uses: checkmarx/kics-github-action@8a44970e3ec2f5e49e9c21e3a3d1b2b0c5b1e0aa
+      - uses: ./.github/actions/local-helper
+      - uses: docker://alpine:3.19
+      # uses: commented/action@v1
+      - name: pinned with trailing comment
+        uses: some/action@0123456789abcdef0123456789abcdef01234567 # v2
+      - uses: telnyx/setup-telnyx@release
+      - uses: orphan/no-ref
