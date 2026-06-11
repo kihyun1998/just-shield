@@ -34,6 +34,26 @@ git clone https://github.com/kihyun1998/just-shield && cd just-shield
 cargo install --path .
 ```
 
+## GitHub Action으로 사용
+
+워크플로에 한 블록 추가하면 끝이다. 래퍼는 로직 없는 얇은 껍데기로, 릴리스 바이너리를 내려받아 **SHA256SUMS 체크섬 검증을 통과한 경우에만** 실행한다 — 검증 실패 시 즉시 실패한다.
+
+```yaml
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      # 우리 액션도 우리 규칙(R1)대로 커밋 SHA로 핀 고정해서 쓰라
+      - uses: kihyun1998/just-shield@<40자리 커밋 SHA>  # 릴리스 태그의 커밋
+        with:
+          strict: true
+```
+
+입력: `path`(기본 `.`), `strict`, `online`, `format`(text|json|sarif), `cooldown-days`, `output-file`(출력 저장 경로), `version`(내려받을 릴리스 — 기본값은 핀 고정된 검증 릴리스). scan의 종료 코드가 그대로 잡 결과가 된다 — 위반이면 잡이 실패한다.
+
 ## 사용법
 
 ```bash

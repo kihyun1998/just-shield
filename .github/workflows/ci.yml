@@ -20,3 +20,15 @@ jobs:
         run: cargo test
       - name: 자기 검사 (dogfood)
         run: cargo run --quiet -- scan . --strict
+  # 액션 래퍼 셀프 테스트 — 3개 OS에서 릴리스 바이너리를 내려받아
+  # 체크섬 검증을 통과한 뒤 이 저장소를 검사한다 (이슈 #30 수용 기준).
+  action-selftest:
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: ./
+        with:
+          strict: true

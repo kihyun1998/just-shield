@@ -1,0 +1,45 @@
+# just-shield GitHub Action 래퍼 (ADR-0005 단계 ②).
+# 엔진/포장 분리(ADR-0004): 로직 없는 얇은 껍데기 — 릴리스 바이너리를 내려받아
+# SHA256SUMS 체크섬 검증을 통과한 경우에만 실행한다. 검증 실패 = 즉시 실패.
+name: just-shield
+description: "GitHub Actions 공급망 검사 — 워크플로가 받아 쓰는 액션이 진짜인지, 오염됐을 때 덜 털리는 구조인지 실행 전에 검사합니다"
+author: kihyun1998
+branding:
+  icon: shield
+  color: green
+inputs:
+  path:
+    description: "검사할 저장소 경로"
+    default: "."
+  strict:
+    description: "'true'면 🟡(중간)도 실패로 승격"
+    default: "false"
+  online:
+    description: "'true'면 온라인 검사(R5 임포스터 커밋 · R10 쿨다운 · LOCK 태그 대조) 활성화"
+    default: "false"
+  format:
+    description: "출력 형식 (text|json|sarif)"
+    default: "text"
+  cooldown-days:
+    description: "R10 쿨다운 기준 일수 (비우면 기본값 7)"
+    default: ""
+  output-file:
+    description: "출력을 저장할 파일 경로 — SARIF를 코드 스캐닝에 업로드할 때 사용 (비우면 stdout)"
+    default: ""
+  version:
+    description: "내려받을 just-shield 릴리스 태그 — 기본값은 핀 고정된 검증 릴리스"
+    default: "v0.1.1"
+runs:
+  using: composite
+  steps:
+    - name: 바이너리 다운로드 → 체크섬 검증 → 검사 실행
+      shell: bash
+      env:
+        JS_VERSION: ${{ inputs.version }}
+        JS_PATH: ${{ inputs.path }}
+        JS_STRICT: ${{ inputs.strict }}
+        JS_ONLINE: ${{ inputs.online }}
+        JS_FORMAT: ${{ inputs.format }}
+        JS_COOLDOWN: ${{ inputs.cooldown-days }}
+        JS_OUTPUT: ${{ inputs.output-file }}
+      run: bash "${{ github.action_path }}/scripts/run.sh"
