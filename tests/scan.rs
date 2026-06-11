@@ -151,9 +151,59 @@ fn strict_promotes_medium_to_failure() {
             evidence: "합성 픽스처".into(),
             fix_hint: "합성 픽스처".into(),
         }],
+        suppressed: vec![],
     };
     assert_eq!(just_shield::report::exit_code(&medium_only, false), 0);
     assert_eq!(just_shield::report::exit_code(&medium_only, true), 1);
+}
+
+#[test]
+fn ignore_comment_with_reason_suppresses_only_that_line_and_rule() {
+    let result = just_shield::scan(Path::new("tests/fixtures/escape")).unwrap();
+
+    // 사유 있는 주석 → 다음 행(vendor/tool@v2)의 R1만 무시됨, 사유 보존.
+    assert_eq!(result.suppressed.len(), 1);
+    assert!(result.suppressed[0].finding.uses.contains("vendor/tool@v2"));
+    assert!(result.suppressed[0].reason.contains("2026-07"));
+
+    // 다른 행(tool2, tool3)에는 영향 없음 — 여전히 활성 🔴.
+    let r1: Vec<_> = result.findings.iter().filter(|f| f.rule == "R1").collect();
+    assert_eq!(r1.len(), 2);
+    assert!(r1.iter().any(|f| f.uses.contains("tool2")));
+    assert!(r1.iter().any(|f| f.uses.contains("tool3")));
+
+    // 사유 없는 주석 → 무시 미적용 + 그 사실이 보고됨.
+    let ignore: Vec<_> = result
+        .findings
+        .iter()
+        .filter(|f| f.rule == "IGNORE")
+        .collect();
+    assert_eq!(ignore.len(), 1);
+    assert_eq!(ignore[0].severity, Severity::Info);
+
+    assert_eq!(just_shield::report::exit_code(&result, false), 1);
+}
+
+#[test]
+fn suppressed_findings_appear_in_reports_with_reason() {
+    let result = just_shield::scan(Path::new("tests/fixtures/escape")).unwrap();
+    let text = just_shield::report::render(&result, false);
+    assert!(text.contains("⚪ R1"));
+    assert!(text.contains("사유: 내부 보안팀 검증 완료"));
+    assert!(text.contains("⚪ 무시 1건"));
+
+    let json = just_shield::report::render_json(&result, false);
+    assert!(json.contains("\"suppressed\": 1"));
+    assert!(json.contains("\"reason\": \"내부 보안팀 검증 완료, 2026-07 SHA 핀 예정\""));
+}
+
+#[test]
+fn trusted_org_from_config_is_first_party() {
+    let result = just_shield::scan(Path::new("tests/fixtures/trusted")).unwrap();
+    // vendor는 .just-shield.conf의 trust-org → 침묵, stranger만 🔴.
+    assert_eq!(result.findings.len(), 1);
+    assert!(result.findings[0].uses.starts_with("stranger/"));
+    assert_eq!(result.findings[0].severity, Severity::High);
 }
 
 #[test]
@@ -161,7 +211,7 @@ fn json_output_for_clean_repo_is_pinned_snapshot() {
     // 스키마 고정: 이 스냅숏이 깨지면 의도적 스키마 변경인지 확인하고 version을 올릴 것.
     let result = just_shield::scan(Path::new("tests/fixtures/clean")).unwrap();
     let json = just_shield::report::render_json(&result, false);
-    let expected = "{\n  \"version\": 1,\n  \"workflows_scanned\": 1,\n  \"summary\": { \"high\": 0, \"medium\": 0, \"info\": 0 },\n  \"exit_code\": 0,\n  \"findings\": []\n}\n";
+    let expected = "{\n  \"version\": 1,\n  \"workflows_scanned\": 1,\n  \"summary\": { \"high\": 0, \"medium\": 0, \"info\": 0, \"suppressed\": 0 },\n  \"exit_code\": 0,\n  \"findings\": [],\n  \"suppressed\": []\n}\n";
     assert_eq!(json, expected);
 }
 
@@ -185,7 +235,7 @@ fn json_output_contains_all_finding_fields() {
         "\"uses\": \"aquasecurity/trivy-action@master\"",
         "\"evidence\": ",
         "\"fix_hint\": ",
-        "\"summary\": { \"high\": 3, \"medium\": 0, \"info\": 1 }",
+        "\"summary\": { \"high\": 3, \"medium\": 0, \"info\": 1, \"suppressed\": 0 }",
         "\"exit_code\": 1",
     ] {
         assert!(json.contains(field), "JSON에 {field} 가 없습니다:\n{json}");

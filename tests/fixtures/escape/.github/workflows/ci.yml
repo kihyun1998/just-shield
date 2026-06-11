@@ -1,0 +1,13 @@
+name: CI
+on: push
+permissions:
+  contents: read
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      # just-shield: ignore R1 -- 내부 보안팀 검증 완료, 2026-07 SHA 핀 예정
+      - uses: vendor/tool@v2
+      - uses: vendor/tool2@v2
+      # just-shield: ignore R1
+      - uses: vendor/tool3@v2

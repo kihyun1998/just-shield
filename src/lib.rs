@@ -3,10 +3,12 @@
 //! CLI(`main.rs`)는 이 라이브러리를 호출하는 얇은 껍데기다 (ADR-0004, 엔진/포장 분리).
 //! 모든 판정은 사실 기반이어야 한다 (ADR-0002) — 추측으로 빌드를 깨뜨리지 않는다.
 
+pub mod config;
 pub mod github_facts;
 pub mod lockfile;
 pub mod report;
 pub mod rules;
+pub mod suppress;
 pub mod trust;
 pub mod uses_ref;
 pub mod workflow;
@@ -18,7 +20,10 @@ use std::path::Path;
 /// 한 저장소에 대한 스캔 결과.
 pub struct ScanResult {
     pub workflows_scanned: usize,
+    /// 활성 발견 — 종료 코드와 집계는 이것만 본다.
     pub findings: Vec<rules::Finding>,
+    /// 무시 주석으로 수용된 발견 — 사유와 함께 보존된다.
+    pub suppressed: Vec<rules::Suppressed>,
 }
 
 /// `lock` 실행 결과.
@@ -41,27 +46,73 @@ pub fn scan_with_facts(
     root: &Path,
     facts: Option<&dyn GithubFacts>,
 ) -> std::io::Result<ScanResult> {
-    let repo_owner = trust::detect_repo_owner(root);
+    let ctx = trust::TrustContext::new(
+        trust::detect_repo_owner(root),
+        config::load(root)?.trusted_owners,
+    );
     let lockfile = lockfile::load(root)?;
     let workflows = workflow::find_workflows(root)?;
     let mut findings = Vec::new();
+    let mut suppressed = Vec::new();
     for wf in &workflows {
         let content = std::fs::read_to_string(wf)?;
         let rel = wf.strip_prefix(root).unwrap_or(wf);
         let entries = workflow::extract_uses_entries(&content);
         let doc = workflow::parse_workflow(&content);
-        findings.extend(rules::check_r1(rel, &entries, repo_owner.as_deref()));
-        findings.extend(rules::check_r6(rel, &doc, repo_owner.as_deref()));
-        findings.extend(rules::check_r7(rel, &doc));
-        findings.extend(rules::check_r8(rel, &doc));
+
+        let mut file_findings = Vec::new();
+        file_findings.extend(rules::check_r1(rel, &entries, &ctx));
+        file_findings.extend(rules::check_r6(rel, &doc, &ctx));
+        file_findings.extend(rules::check_r7(rel, &doc));
+        file_findings.extend(rules::check_r8(rel, &doc));
         if let Some(lf) = &lockfile {
-            findings.extend(rules::check_lock(rel, &entries, lf, facts));
+            file_findings.extend(rules::check_lock(rel, &entries, lf, facts, &ctx));
+        }
+
+        // 탈출구 ①: 무시 주석 적용. 사유 없는 주석은 적용되지 않고 그 사실이 보고된다.
+        let directives = suppress::parse(&content);
+        for d in &directives {
+            if d.reason.is_none() {
+                file_findings.push(rules::Finding {
+                    rule: "IGNORE",
+                    severity: rules::Severity::Info,
+                    file: rel.display().to_string(),
+                    line: d.comment_line,
+                    uses: String::new(),
+                    evidence: "무시 주석에 사유가 없습니다 — `--` 뒤에 사유를 적지 않으면 무시가 적용되지 않습니다"
+                        .into(),
+                    fix_hint: "`# just-shield: ignore R1 -- <왜 수용하는지>` 형식으로 사유를 적으세요"
+                        .into(),
+                });
+            }
+        }
+        for f in file_findings {
+            let matched = directives.iter().find(|d| {
+                d.reason.is_some()
+                    && d.target_line == Some(f.line)
+                    && d.rules.iter().any(|r| r == f.rule)
+            });
+            match matched {
+                Some(d) => suppressed.push(rules::Suppressed {
+                    finding: f,
+                    reason: d.reason.clone().expect("reason은 위에서 확인됨"),
+                }),
+                None => findings.push(f),
+            }
         }
     }
     findings.sort_by(|a, b| (&a.file, a.line, a.rule).cmp(&(&b.file, b.line, b.rule)));
+    suppressed.sort_by(|a, b| {
+        (&a.finding.file, a.finding.line, a.finding.rule).cmp(&(
+            &b.finding.file,
+            b.finding.line,
+            b.finding.rule,
+        ))
+    });
     Ok(ScanResult {
         workflows_scanned: workflows.len(),
         findings,
+        suppressed,
     })
 }
 
