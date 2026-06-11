@@ -260,7 +260,7 @@ fn parse_steps(lines: &[Line]) -> Vec<Step> {
 }
 
 /// 한 행에서 `uses:` 값을 추출한다. 주석 행과 `uses:`가 아닌 행은 None.
-fn extract_uses_value(line: &str) -> Option<String> {
+pub fn extract_uses_value(line: &str) -> Option<String> {
     let trimmed = line.trim_start();
     // 주석 처리된 행 (`# uses: ...`)은 실행되지 않으므로 검사 대상이 아니다.
     if trimmed.starts_with('#') {
