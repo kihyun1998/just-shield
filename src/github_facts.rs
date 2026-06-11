@@ -23,6 +23,12 @@ pub trait GithubFacts {
     fn ref_timestamp(&self, _owner_repo: &str, _git_ref: &str) -> io::Result<Option<i64>> {
         Ok(None)
     }
+
+    /// 저장소의 버전 태그 개수 (R2 교차 검증) — 유명 액션은 수십 개, 급조 짝퉁은 0~2개.
+    /// `Ok(None)` = 판정 불가(미지원/저장소 없음) — 승격하지 않는다.
+    fn ref_count(&self, _owner_repo: &str) -> io::Result<Option<usize>> {
+        Ok(None)
+    }
 }
 
 /// `git ls-remote` 기반의 실제 구현.
@@ -52,6 +58,23 @@ impl GithubFacts for GitRemote {
 
     fn ref_timestamp(&self, owner_repo: &str, git_ref: &str) -> io::Result<Option<i64>> {
         Self::ref_timestamp_impl(owner_repo, git_ref)
+    }
+
+    fn ref_count(&self, owner_repo: &str) -> io::Result<Option<usize>> {
+        let url = format!("https://github.com/{owner_repo}.git");
+        let out = std::process::Command::new("git")
+            .args(["ls-remote", "--tags", &url])
+            .output()?;
+        if !out.status.success() {
+            // 저장소 없음/접근 불가 — 승격 근거가 될 수 없으므로 판정 불가.
+            return Ok(None);
+        }
+        Ok(Some(
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .count(),
+        ))
     }
 }
 
