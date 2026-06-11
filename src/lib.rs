@@ -61,8 +61,12 @@ pub fn scan_with_facts(
         let entries = workflow::extract_uses_entries(&content);
         let doc = workflow::parse_workflow(&content);
 
+        let images = workflow::extract_image_refs(&content);
+
         let mut file_findings = Vec::new();
         file_findings.extend(rules::check_r1(rel, &entries, &ctx));
+        file_findings.extend(rules::check_r3(rel, &doc));
+        file_findings.extend(rules::check_r4(rel, &entries, &images));
         file_findings.extend(rules::check_r6(rel, &doc, &ctx));
         file_findings.extend(rules::check_r7(rel, &doc));
         file_findings.extend(rules::check_r8(rel, &doc));

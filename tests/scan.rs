@@ -10,12 +10,12 @@ fn detects_mutable_refs_with_file_and_line() {
     assert_eq!(result.workflows_scanned, 1);
 
     // 가변 참조 4건: @v4, @master, @release, 참조 없음.
-    // SHA 핀 2건, 로컬, docker://, 주석 처리 행은 침묵해야 한다.
-    let lines: Vec<usize> = result.findings.iter().map(|f| f.line).collect();
+    // SHA 핀 2건, 로컬, docker://(R1 대상 아님), 주석 처리 행은 침묵해야 한다.
+    let r1: Vec<_> = result.findings.iter().filter(|f| f.rule == "R1").collect();
+    let lines: Vec<usize> = r1.iter().map(|f| f.line).collect();
     assert_eq!(lines, vec![9, 10, 17, 18]);
 
     for f in &result.findings {
-        assert_eq!(f.rule, "R1");
         assert!(f.file.contains("ci.yml"));
         assert!(!f.evidence.is_empty(), "모든 발견에는 근거가 붙어야 한다");
         assert!(
@@ -25,13 +25,13 @@ fn detects_mutable_refs_with_file_and_line() {
     }
 
     // 신뢰 차등: GitHub 공식(actions/*)은 🔵, 그 외 서드파티는 🔴.
-    assert_eq!(result.findings[0].severity, Severity::Info);
-    assert_eq!(result.findings[1].severity, Severity::High);
-    assert_eq!(result.findings[2].severity, Severity::High);
-    assert_eq!(result.findings[3].severity, Severity::High);
+    assert_eq!(r1[0].severity, Severity::Info);
+    assert_eq!(r1[1].severity, Severity::High);
+    assert_eq!(r1[2].severity, Severity::High);
+    assert_eq!(r1[3].severity, Severity::High);
 
     // 따옴표로 감싼 참조도 값이 정확히 추출돼야 한다.
-    assert_eq!(result.findings[1].uses, "aquasecurity/trivy-action@master");
+    assert_eq!(r1[1].uses, "aquasecurity/trivy-action@master");
 }
 
 #[test]
@@ -207,6 +207,38 @@ fn trusted_org_from_config_is_first_party() {
 }
 
 #[test]
+fn pipe_install_is_info_only_and_never_fails() {
+    let result = just_shield::scan(Path::new("tests/fixtures/pipe")).unwrap();
+    let r3: Vec<_> = result.findings.iter().filter(|f| f.rule == "R3").collect();
+
+    // curl | bash 한 건만 — 체크섬 검증 동반(wget+sha256sum)과 `| shasum`은 침묵.
+    assert_eq!(r3.len(), 1);
+    assert_eq!(r3[0].line, 9);
+    assert_eq!(r3[0].severity, Severity::Info);
+
+    // ADR-0002 회귀: 휴리스틱(R3)은 단독으로 빌드를 깨뜨릴 수 없다 — strict에서도.
+    assert_eq!(just_shield::report::exit_code(&result, false), 0);
+    assert_eq!(just_shield::report::exit_code(&result, true), 0);
+}
+
+#[test]
+fn images_without_digest_are_medium() {
+    let result = just_shield::scan(Path::new("tests/fixtures/images")).unwrap();
+    let r4: Vec<_> = result.findings.iter().filter(|f| f.rule == "R4").collect();
+
+    // container: node:18 + image: postgres:16 두 건.
+    // redis@sha256(다이제스트)과 ${{ matrix.img }}(표현식 — 판정 불가)는 침묵.
+    assert_eq!(r4.len(), 2);
+    assert!(r4.iter().all(|f| f.severity == Severity::Medium));
+    assert!(r4.iter().any(|f| f.uses.contains("node:18")));
+    assert!(r4.iter().any(|f| f.uses.contains("postgres:16")));
+
+    // 🟡뿐이므로 기본 통과, --strict에서 실패.
+    assert_eq!(just_shield::report::exit_code(&result, false), 0);
+    assert_eq!(just_shield::report::exit_code(&result, true), 1);
+}
+
+#[test]
 fn json_output_for_clean_repo_is_pinned_snapshot() {
     // 스키마 고정: 이 스냅숏이 깨지면 의도적 스키마 변경인지 확인하고 version을 올릴 것.
     let result = just_shield::scan(Path::new("tests/fixtures/clean")).unwrap();
@@ -235,7 +267,8 @@ fn json_output_contains_all_finding_fields() {
         "\"uses\": \"aquasecurity/trivy-action@master\"",
         "\"evidence\": ",
         "\"fix_hint\": ",
-        "\"summary\": { \"high\": 3, \"medium\": 0, \"info\": 1, \"suppressed\": 0 }",
+        // docker://alpine:3.19가 R4 🟡로 잡힌다.
+        "\"summary\": { \"high\": 3, \"medium\": 1, \"info\": 1, \"suppressed\": 0 }",
         "\"exit_code\": 1",
     ] {
         assert!(json.contains(field), "JSON에 {field} 가 없습니다:\n{json}");

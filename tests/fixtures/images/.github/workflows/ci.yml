@@ -1,0 +1,17 @@
+name: CI
+on: push
+permissions:
+  contents: read
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    container: node:18
+    services:
+      db:
+        image: postgres:16
+      cache:
+        image: redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      dynamic:
+        image: ${{ matrix.img }}
+    steps:
+      - run: echo hi

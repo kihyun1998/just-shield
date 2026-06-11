@@ -1,0 +1,15 @@
+name: CI
+on: push
+permissions:
+  contents: read
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -sSL https://example.com/install.sh | bash
+      - run: |
+          wget https://example.com/tool.tar.gz
+          echo "abc123  tool.tar.gz" | sha256sum -c -
+          tar xf tool.tar.gz
+      - run: curl -s https://example.com/file.txt | shasum -a 256
+      - run: echo hello
