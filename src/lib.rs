@@ -25,10 +25,15 @@ pub fn scan(root: &Path) -> std::io::Result<ScanResult> {
     let mut findings = Vec::new();
     for wf in &workflows {
         let content = std::fs::read_to_string(wf)?;
-        let entries = workflow::extract_uses_entries(&content);
         let rel = wf.strip_prefix(root).unwrap_or(wf);
+        let entries = workflow::extract_uses_entries(&content);
+        let doc = workflow::parse_workflow(&content);
         findings.extend(rules::check_r1(rel, &entries, repo_owner.as_deref()));
+        findings.extend(rules::check_r6(rel, &doc, repo_owner.as_deref()));
+        findings.extend(rules::check_r7(rel, &doc));
+        findings.extend(rules::check_r8(rel, &doc));
     }
+    findings.sort_by(|a, b| (&a.file, a.line, a.rule).cmp(&(&b.file, b.line, b.rule)));
     Ok(ScanResult {
         workflows_scanned: workflows.len(),
         findings,
