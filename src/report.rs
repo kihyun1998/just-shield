@@ -22,6 +22,11 @@ pub fn render(result: &ScanResult, strict: bool) -> String {
     ));
     if result.findings.is_empty() {
         s.push_str("✅ 위반 없음 — 모든 액션 참조가 안전하게 핀 고정되어 있습니다\n");
+        if result.online_rules_skipped {
+            s.push_str(
+                "참고: 온라인 검사(R5 임포스터 커밋 · R10 쿨다운 · LOCK 태그 대조)는 --online 옵션에서 수행됩니다\n",
+            );
+        }
         return s;
     }
     for f in &result.findings {
@@ -59,6 +64,11 @@ pub fn render(result: &ScanResult, strict: bool) -> String {
     s.push_str(&format!(
         "요약: 🔴 {high}건 · 🟡 {medium}건 · 🔵 {info}건 · ⚪ 무시 {suppressed}건 — {status}\n"
     ));
+    if result.online_rules_skipped {
+        s.push_str(
+            "참고: 온라인 검사(R5 임포스터 커밋 · R10 쿨다운 · LOCK 태그 대조)는 --online 옵션에서 수행됩니다\n",
+        );
+    }
     s
 }
 

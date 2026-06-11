@@ -10,6 +10,7 @@ struct Cli {
     strict: bool,
     online: bool,
     dry_run: bool,
+    cooldown_days: Option<u32>,
     format: String,
 }
 
@@ -20,6 +21,7 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
         strict: false,
         online: false,
         dry_run: false,
+        cooldown_days: None,
         format: "text".to_string(),
     };
     let mut positional = Vec::new();
@@ -29,6 +31,14 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
             "--strict" => cli.strict = true,
             "--online" => cli.online = true,
             "--dry-run" => cli.dry_run = true,
+            "--cooldown-days" => {
+                i += 1;
+                cli.cooldown_days = Some(
+                    args.get(i)
+                        .and_then(|v| v.parse().ok())
+                        .ok_or("--cooldown-days 뒤에 일수가 필요합니다")?,
+                );
+            }
             "--format" => {
                 i += 1;
                 cli.format = args
@@ -66,7 +76,11 @@ fn main() -> ExitCode {
         Some("scan") => {
             let remote = GitRemote;
             let facts: Option<&dyn GithubFacts> = if cli.online { Some(&remote) } else { None };
-            match just_shield::scan_with_facts(Path::new(&cli.root), facts) {
+            let options = just_shield::ScanOptions {
+                facts,
+                cooldown_days: cli.cooldown_days,
+            };
+            match just_shield::scan_with_options(Path::new(&cli.root), &options) {
                 Ok(result) => {
                     let output = match cli.format.as_str() {
                         "json" => just_shield::report::render_json(&result, cli.strict),
@@ -127,7 +141,7 @@ fn main() -> ExitCode {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--format text|json]"
+        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--cooldown-days N] [--format text|json]"
     );
     ExitCode::from(2)
 }
