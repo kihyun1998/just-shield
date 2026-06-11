@@ -1,0 +1,20 @@
+# 출처: 전형적인 Rust 프로젝트 CI를 본뜬 양성 픽스처 — 전부 SHA 핀, 최소 권한.
+# 🔴 오탐이 나면 안 된다.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+      - run: cargo test --all-features
+      - run: cargo clippy -- -D warnings

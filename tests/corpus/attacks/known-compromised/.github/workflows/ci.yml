@@ -1,0 +1,13 @@
+# 재현: CVE-2025-30066 (2025-03) — tj-actions/changed-files 태그 하이재킹으로 주입된
+# 실제 악성 커밋. TeamPCP의 Trivy/KICS 공격과 동일 수법의 공개 권고 사례이며,
+# 동봉 권고 DB(R9)가 오프라인으로 잡아야 한다.
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: tj-actions/changed-files@0e58ed8671d6b60d0890c21b07f8835ace038e67
