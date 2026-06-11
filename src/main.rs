@@ -9,6 +9,7 @@ struct Cli {
     root: String,
     strict: bool,
     online: bool,
+    dry_run: bool,
     format: String,
 }
 
@@ -18,6 +19,7 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
         root: ".".to_string(),
         strict: false,
         online: false,
+        dry_run: false,
         format: "text".to_string(),
     };
     let mut positional = Vec::new();
@@ -26,6 +28,7 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
         match args[i].as_str() {
             "--strict" => cli.strict = true,
             "--online" => cli.online = true,
+            "--dry-run" => cli.dry_run = true,
             "--format" => {
                 i += 1;
                 cli.format = args
@@ -91,13 +94,40 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Some("fix") => match just_shield::fix::fix(Path::new(&cli.root), &GitRemote, cli.dry_run) {
+            Ok(outcome) => {
+                for c in &outcome.changes {
+                    println!("{}:{}", c.file, c.line);
+                    println!("  - {}", c.from);
+                    println!("  + {}", c.to);
+                }
+                for (reference, reason) in &outcome.skipped {
+                    eprintln!("건너뜀: {reference} — {reason}");
+                }
+                let mode = if outcome.applied {
+                    "적용 완료"
+                } else {
+                    "미리보기 (--dry-run, 파일 미변경)"
+                };
+                println!(
+                    "fix: 교체 {}건, 건너뜀 {}건 — {mode}",
+                    outcome.changes.len(),
+                    outcome.skipped.len()
+                );
+                ExitCode::from(0)
+            }
+            Err(e) => {
+                eprintln!("오류: {e}");
+                ExitCode::from(2)
+            }
+        },
         _ => usage(),
     }
 }
 
 fn usage() -> ExitCode {
     eprintln!(
-        "사용법: just-shield <scan|lock> [저장소 경로] [--strict] [--online] [--format text|json]"
+        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--format text|json]"
     );
     ExitCode::from(2)
 }

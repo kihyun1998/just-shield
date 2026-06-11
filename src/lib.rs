@@ -4,6 +4,7 @@
 //! 모든 판정은 사실 기반이어야 한다 (ADR-0002) — 추측으로 빌드를 깨뜨리지 않는다.
 
 pub mod config;
+pub mod fix;
 pub mod github_facts;
 pub mod lockfile;
 pub mod report;

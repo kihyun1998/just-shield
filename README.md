@@ -12,6 +12,8 @@ just-shield scan . --strict         # 🟡(중간)도 빌드 실패로 승격
 just-shield scan . --online         # shield.lock 대조 등 네트워크 검사 활성화
 just-shield scan . --format json    # 기계용 JSON 출력
 just-shield lock [경로]              # 태그→SHA를 shield.lock으로 박제 (네트워크 필요)
+just-shield fix [경로]               # 가변 참조를 SHA로 자동 교체 + 버전 주석 (네트워크 필요)
+just-shield fix [경로] --dry-run     # 교체 내용을 적용 없이 미리보기
 ```
 
 종료 코드: `0` 통과 · `1` 위반(🔴, `--strict`면 🟡 포함) · `2` 사용법/입출력 오류.
