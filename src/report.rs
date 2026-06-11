@@ -50,6 +50,79 @@ pub fn render(result: &ScanResult, strict: bool) -> String {
     s
 }
 
+/// 기계용 JSON 리포트. 스키마는 README에 문서화되어 있으며 스냅숏 테스트로 고정된다.
+/// 경로 구분자는 플랫폼과 무관하게 `/`로 정규화한다 — 파싱 스크립트가 OS를 타지 않도록.
+pub fn render_json(result: &ScanResult, strict: bool) -> String {
+    let (high, medium, info) = tier_counts(result);
+    let mut s = String::new();
+    s.push_str("{\n");
+    s.push_str("  \"version\": 1,\n");
+    s.push_str(&format!(
+        "  \"workflows_scanned\": {},\n",
+        result.workflows_scanned
+    ));
+    s.push_str(&format!(
+        "  \"summary\": {{ \"high\": {high}, \"medium\": {medium}, \"info\": {info} }},\n"
+    ));
+    s.push_str(&format!(
+        "  \"exit_code\": {},\n",
+        exit_code(result, strict)
+    ));
+    s.push_str("  \"findings\": [");
+    for (i, f) in result.findings.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str("\n    {\n");
+        s.push_str(&format!("      \"rule\": \"{}\",\n", esc(f.rule)));
+        s.push_str(&format!(
+            "      \"severity\": \"{}\",\n",
+            severity_name(f.severity)
+        ));
+        s.push_str(&format!(
+            "      \"file\": \"{}\",\n",
+            esc(&f.file.replace('\\', "/"))
+        ));
+        s.push_str(&format!("      \"line\": {},\n", f.line));
+        s.push_str(&format!("      \"uses\": \"{}\",\n", esc(&f.uses)));
+        s.push_str(&format!("      \"evidence\": \"{}\",\n", esc(&f.evidence)));
+        s.push_str(&format!("      \"fix_hint\": \"{}\"\n", esc(&f.fix_hint)));
+        s.push_str("    }");
+    }
+    if result.findings.is_empty() {
+        s.push_str("]\n");
+    } else {
+        s.push_str("\n  ]\n");
+    }
+    s.push_str("}\n");
+    s
+}
+
+fn severity_name(s: Severity) -> &'static str {
+    match s {
+        Severity::High => "high",
+        Severity::Medium => "medium",
+        Severity::Info => "info",
+    }
+}
+
+/// JSON 문자열 이스케이프 — 따옴표·역슬래시·제어 문자.
+fn esc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// 종료 코드: 🔴 있으면 1, `--strict`면 🟡도 1, 그 외 0. (사용법 오류는 main에서 2.)
 pub fn exit_code(result: &ScanResult, strict: bool) -> u8 {
     let (high, medium, _) = tier_counts(result);

@@ -157,6 +157,46 @@ fn strict_promotes_medium_to_failure() {
 }
 
 #[test]
+fn json_output_for_clean_repo_is_pinned_snapshot() {
+    // 스키마 고정: 이 스냅숏이 깨지면 의도적 스키마 변경인지 확인하고 version을 올릴 것.
+    let result = just_shield::scan(Path::new("tests/fixtures/clean")).unwrap();
+    let json = just_shield::report::render_json(&result, false);
+    let expected = "{\n  \"version\": 1,\n  \"workflows_scanned\": 1,\n  \"summary\": { \"high\": 0, \"medium\": 0, \"info\": 0 },\n  \"exit_code\": 0,\n  \"findings\": []\n}\n";
+    assert_eq!(json, expected);
+}
+
+#[test]
+fn json_output_contains_all_finding_fields() {
+    let bin = env!("CARGO_BIN_EXE_just-shield");
+    let out = Command::new(bin)
+        .args(["scan", "tests/fixtures/violation", "--format", "json"])
+        .output()
+        .unwrap();
+    // 종료 코드는 텍스트 모드와 동일.
+    assert_eq!(out.status.code(), Some(1));
+    let json = String::from_utf8_lossy(&out.stdout);
+    for field in [
+        "\"rule\": \"R1\"",
+        "\"severity\": \"high\"",
+        "\"severity\": \"info\"",
+        // 경로는 OS와 무관하게 / 구분자로 정규화된다.
+        "\"file\": \".github/workflows/ci.yml\"",
+        "\"line\": 9",
+        "\"uses\": \"aquasecurity/trivy-action@master\"",
+        "\"evidence\": ",
+        "\"fix_hint\": ",
+        "\"summary\": { \"high\": 3, \"medium\": 0, \"info\": 1 }",
+        "\"exit_code\": 1",
+    ] {
+        assert!(json.contains(field), "JSON에 {field} 가 없습니다:\n{json}");
+    }
+    assert!(
+        !json.contains('\\') || !json.contains("workflows\\"),
+        "경로 정규화 실패"
+    );
+}
+
+#[test]
 fn exit_code_one_on_violation_zero_on_clean() {
     let bin = env!("CARGO_BIN_EXE_just-shield");
 
