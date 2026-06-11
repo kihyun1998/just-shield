@@ -3,12 +3,16 @@
 //! CLI(`main.rs`)는 이 라이브러리를 호출하는 얇은 껍데기다 (ADR-0004, 엔진/포장 분리).
 //! 모든 판정은 사실 기반이어야 한다 (ADR-0002) — 추측으로 빌드를 깨뜨리지 않는다.
 
+pub mod github_facts;
+pub mod lockfile;
 pub mod report;
 pub mod rules;
 pub mod trust;
 pub mod uses_ref;
 pub mod workflow;
 
+use github_facts::GithubFacts;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// 한 저장소에 대한 스캔 결과.
@@ -17,10 +21,28 @@ pub struct ScanResult {
     pub findings: Vec<rules::Finding>,
 }
 
+/// `lock` 실행 결과.
+pub struct LockOutcome {
+    /// 박제된 항목 수.
+    pub written: usize,
+    /// 해석하지 못해 건너뛴 참조와 사유.
+    pub skipped: Vec<(String, String)>,
+}
+
 /// 저장소 루트를 받아 `.github/workflows`의 모든 워크플로를 검사한다.
-/// 네트워크 접근 없음 — 파일만 읽는다.
+/// 완전 오프라인 — 파일만 읽는다.
 pub fn scan(root: &Path) -> std::io::Result<ScanResult> {
+    scan_with_facts(root, None)
+}
+
+/// 외부 조회(`facts`)가 주어지면 shield.lock 대조에 현재 태그 해석을 사용한다.
+/// `facts`가 None이면(오프라인) 네트워크가 필요한 대조는 건너뛴다.
+pub fn scan_with_facts(
+    root: &Path,
+    facts: Option<&dyn GithubFacts>,
+) -> std::io::Result<ScanResult> {
     let repo_owner = trust::detect_repo_owner(root);
+    let lockfile = lockfile::load(root)?;
     let workflows = workflow::find_workflows(root)?;
     let mut findings = Vec::new();
     for wf in &workflows {
@@ -32,10 +54,51 @@ pub fn scan(root: &Path) -> std::io::Result<ScanResult> {
         findings.extend(rules::check_r6(rel, &doc, repo_owner.as_deref()));
         findings.extend(rules::check_r7(rel, &doc));
         findings.extend(rules::check_r8(rel, &doc));
+        if let Some(lf) = &lockfile {
+            findings.extend(rules::check_lock(rel, &entries, lf, facts));
+        }
     }
     findings.sort_by(|a, b| (&a.file, a.line, a.rule).cmp(&(&b.file, b.line, b.rule)));
     Ok(ScanResult {
         workflows_scanned: workflows.len(),
         findings,
     })
+}
+
+/// 워크플로의 모든 가변 참조를 해석해 shield.lock으로 박제한다 (ADR-0003).
+pub fn lock(root: &Path, facts: &dyn GithubFacts) -> std::io::Result<LockOutcome> {
+    let workflows = workflow::find_workflows(root)?;
+    // BTreeSet 효과: 정렬 + 중복 제거 → 같은 입력이면 항상 같은 락파일.
+    let mut wanted: BTreeMap<(String, String), ()> = BTreeMap::new();
+    for wf in &workflows {
+        let content = std::fs::read_to_string(wf)?;
+        for e in workflow::extract_uses_entries(&content) {
+            if let uses_ref::UsesRef::Repository {
+                owner_repo,
+                git_ref: Some(uses_ref::RefKind::Mutable(r)),
+            } = uses_ref::parse(&e.value)
+            {
+                wanted.insert((uses_ref::repo_root(&owner_repo).to_string(), r), ());
+            }
+        }
+    }
+
+    let mut lf = lockfile::Lockfile::default();
+    let mut skipped = Vec::new();
+    for (repo, git_ref) in wanted.into_keys() {
+        match facts.resolve_ref(&repo, &git_ref) {
+            Ok(Some(sha)) => {
+                lf.entries
+                    .insert(lockfile::Lockfile::key(&repo, &git_ref), sha);
+            }
+            Ok(None) => skipped.push((
+                format!("{repo}@{git_ref}"),
+                "참조를 찾을 수 없음".to_string(),
+            )),
+            Err(e) => skipped.push((format!("{repo}@{git_ref}"), e.to_string())),
+        }
+    }
+    let written = lf.entries.len();
+    lockfile::save(root, &lf)?;
+    Ok(LockOutcome { written, skipped })
 }

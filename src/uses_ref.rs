@@ -55,6 +55,14 @@ fn is_commit_sha(s: &str) -> bool {
     s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// `owner/repo/subpath`에서 저장소 부분(`owner/repo`)만 — 태그는 저장소에 속한다.
+pub fn repo_root(owner_repo: &str) -> &str {
+    match owner_repo.match_indices('/').nth(1) {
+        Some((idx, _)) => &owner_repo[..idx],
+        None => owner_repo,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{RefKind, UsesRef, parse};

@@ -1,5 +1,7 @@
 //! 검사 규칙. R1(가변 참조) + 피해 반경 R6(시크릿 노출)·R7(권한 과잉)·R8(위험 트리거).
 
+use crate::github_facts::GithubFacts;
+use crate::lockfile::Lockfile;
 use crate::trust::{self, Trust};
 use crate::uses_ref::{self, RefKind, UsesRef};
 use crate::workflow::{UsesEntry, WorkflowDoc};
@@ -172,6 +174,94 @@ pub fn check_r7(file: &Path, doc: &WorkflowDoc) -> Vec<Finding> {
                 fix_hint: broad_hint.into(),
             }),
         }
+    }
+    out
+}
+
+/// LOCK — shield.lock 박제본 대비 태그 이동 탐지 (ADR-0003).
+///
+/// 박제 SHA ≠ 현재 SHA는 조회 가능한 사실이다. 단 `v4` 같은 메이저 별칭과 브랜치는
+/// 정상적으로도 이동하므로 🔵 안내에 머물고, 점이 포함된 정확 버전 태그의 이동만
+/// 🔴다 — 이것이 TeamPCP가 Trivy 76개 태그에 쓴 하이재킹의 형태다.
+pub fn check_lock(
+    file: &Path,
+    entries: &[UsesEntry],
+    lockfile: &Lockfile,
+    facts: Option<&dyn GithubFacts>,
+) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for e in entries {
+        let UsesRef::Repository {
+            owner_repo,
+            git_ref: Some(RefKind::Mutable(git_ref)),
+        } = uses_ref::parse(&e.value)
+        else {
+            continue;
+        };
+        let repo = uses_ref::repo_root(&owner_repo).to_string();
+        let Some(locked_sha) = lockfile.get(&repo, &git_ref) else {
+            out.push(Finding {
+                rule: "LOCK",
+                severity: Severity::Info,
+                file: file.display().to_string(),
+                line: e.line,
+                uses: e.value.clone(),
+                evidence: format!(
+                    "가변 참조 `{repo}@{git_ref}`이(가) shield.lock에 박제되어 있지 않습니다 — \
+                     이동 감시 대상에서 빠져 있습니다"
+                ),
+                fix_hint: "`just-shield lock`을 실행해 박제본을 갱신하세요".into(),
+            });
+            continue;
+        };
+        let Some(facts) = facts else {
+            // 오프라인: 현재 SHA를 조회할 수 없으므로 대조는 건너뛴다 (오탐 금지).
+            continue;
+        };
+        let current = match facts.resolve_ref(&repo, &git_ref) {
+            Ok(Some(sha)) => sha,
+            Ok(None) | Err(_) => {
+                out.push(Finding {
+                    rule: "LOCK",
+                    severity: Severity::Info,
+                    file: file.display().to_string(),
+                    line: e.line,
+                    uses: e.value.clone(),
+                    evidence: format!(
+                        "`{repo}@{git_ref}`의 현재 SHA를 확인하지 못했습니다 — 판정 보류 (확인 불가는 오탐을 만들지 않습니다)"
+                    ),
+                    fix_hint: "네트워크 상태를 확인하고 다시 시도하세요".into(),
+                });
+                continue;
+            }
+        };
+        if current == locked_sha {
+            continue;
+        }
+        // 정확 버전 태그(점 포함)는 정상 상황에서 움직이지 않는다 → 이동 = 🔴.
+        // 메이저 별칭(v4)·브랜치는 릴리스마다 합법적으로 이동할 수 있다 → 🔵.
+        let exact_version = git_ref.contains('.');
+        let (severity, label) = if exact_version {
+            (Severity::High, "태그 하이재킹 신호")
+        } else {
+            (
+                Severity::Info,
+                "이동 감지 — 메이저 별칭/브랜치는 정상 릴리스로도 이동합니다",
+            )
+        };
+        out.push(Finding {
+            rule: "LOCK",
+            severity,
+            file: file.display().to_string(),
+            line: e.line,
+            uses: e.value.clone(),
+            evidence: format!(
+                "박제 시점의 `{repo}@{git_ref}`은(는) {locked_sha}였는데 지금은 {current}를 \
+                 가리킵니다 — {label} (TeamPCP가 Trivy/KICS에 쓴 수법)"
+            ),
+            fix_hint: "업스트림 릴리스 노트로 의도된 변경인지 확인하고, 맞다면 `just-shield lock`을 재실행하세요"
+                .into(),
+        });
     }
     out
 }
