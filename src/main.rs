@@ -5,13 +5,16 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match args.first().map(String::as_str) {
+    let strict = args.iter().any(|a| a == "--strict");
+    let positional: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
+
+    match positional.first().map(|s| s.as_str()) {
         Some("scan") => {
-            let root = args.get(1).map(String::as_str).unwrap_or(".");
+            let root = positional.get(1).map(|s| s.as_str()).unwrap_or(".");
             match just_shield::scan(Path::new(root)) {
                 Ok(result) => {
-                    print!("{}", just_shield::report::render(&result));
-                    ExitCode::from(just_shield::report::exit_code(&result))
+                    print!("{}", just_shield::report::render(&result, strict));
+                    ExitCode::from(just_shield::report::exit_code(&result, strict))
                 }
                 Err(e) => {
                     eprintln!("오류: {e}");
@@ -20,7 +23,7 @@ fn main() -> ExitCode {
             }
         }
         _ => {
-            eprintln!("사용법: just-shield scan [저장소 경로]");
+            eprintln!("사용법: just-shield scan [저장소 경로] [--strict]");
             ExitCode::from(2)
         }
     }

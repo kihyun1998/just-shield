@@ -5,6 +5,7 @@
 
 pub mod report;
 pub mod rules;
+pub mod trust;
 pub mod uses_ref;
 pub mod workflow;
 
@@ -19,13 +20,14 @@ pub struct ScanResult {
 /// 저장소 루트를 받아 `.github/workflows`의 모든 워크플로를 검사한다.
 /// 네트워크 접근 없음 — 파일만 읽는다.
 pub fn scan(root: &Path) -> std::io::Result<ScanResult> {
+    let repo_owner = trust::detect_repo_owner(root);
     let workflows = workflow::find_workflows(root)?;
     let mut findings = Vec::new();
     for wf in &workflows {
         let content = std::fs::read_to_string(wf)?;
         let entries = workflow::extract_uses_entries(&content);
         let rel = wf.strip_prefix(root).unwrap_or(wf);
-        findings.extend(rules::check_r1(rel, &entries));
+        findings.extend(rules::check_r1(rel, &entries, repo_owner.as_deref()));
     }
     Ok(ScanResult {
         workflows_scanned: workflows.len(),
