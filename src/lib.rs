@@ -25,6 +25,16 @@ pub struct ScanResult {
     pub findings: Vec<rules::Finding>,
     /// 무시 주석으로 수용된 발견 — 사유와 함께 보존된다.
     pub suppressed: Vec<rules::Suppressed>,
+    /// 오프라인 실행이라 온라인 규칙(R5·R10·LOCK 대조)을 건너뛰었는가 — 리포트에 안내.
+    pub online_rules_skipped: bool,
+}
+
+/// 스캔 동작 옵션.
+#[derive(Default)]
+pub struct ScanOptions<'a> {
+    pub facts: Option<&'a dyn GithubFacts>,
+    /// 쿨다운 기준 일수 — None이면 설정 파일, 그것도 없으면 7일.
+    pub cooldown_days: Option<u32>,
 }
 
 /// `lock` 실행 결과.
@@ -41,16 +51,30 @@ pub fn scan(root: &Path) -> std::io::Result<ScanResult> {
     scan_with_facts(root, None)
 }
 
-/// 외부 조회(`facts`)가 주어지면 shield.lock 대조에 현재 태그 해석을 사용한다.
-/// `facts`가 None이면(오프라인) 네트워크가 필요한 대조는 건너뛴다.
+/// 외부 조회(`facts`)가 주어지면 온라인 규칙(R5·R10·LOCK 대조)을 수행한다.
 pub fn scan_with_facts(
     root: &Path,
     facts: Option<&dyn GithubFacts>,
 ) -> std::io::Result<ScanResult> {
-    let ctx = trust::TrustContext::new(
-        trust::detect_repo_owner(root),
-        config::load(root)?.trusted_owners,
-    );
+    scan_with_options(
+        root,
+        &ScanOptions {
+            facts,
+            ..Default::default()
+        },
+    )
+}
+
+/// 모든 옵션을 받는 스캔 진입점.
+pub fn scan_with_options(root: &Path, options: &ScanOptions) -> std::io::Result<ScanResult> {
+    let facts = options.facts;
+    let loaded = config::load(root)?;
+    let cooldown_days = options.cooldown_days.or(loaded.cooldown_days).unwrap_or(7);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let ctx = trust::TrustContext::new(trust::detect_repo_owner(root), loaded.trusted_owners);
     let lockfile = lockfile::load(root)?;
     let workflows = workflow::find_workflows(root)?;
     let mut findings = Vec::new();
@@ -72,6 +96,17 @@ pub fn scan_with_facts(
         file_findings.extend(rules::check_r8(rel, &doc));
         if let Some(lf) = &lockfile {
             file_findings.extend(rules::check_lock(rel, &entries, lf, facts, &ctx));
+        }
+        if let Some(facts) = facts {
+            file_findings.extend(rules::check_r5(rel, &entries, facts, &ctx));
+            file_findings.extend(rules::check_r10(
+                rel,
+                &entries,
+                facts,
+                &ctx,
+                cooldown_days,
+                now,
+            ));
         }
 
         // 탈출구 ①: 무시 주석 적용. 사유 없는 주석은 적용되지 않고 그 사실이 보고된다.
@@ -118,6 +153,7 @@ pub fn scan_with_facts(
         workflows_scanned: workflows.len(),
         findings,
         suppressed,
+        online_rules_skipped: facts.is_none(),
     })
 }
 

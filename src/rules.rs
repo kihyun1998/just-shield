@@ -258,6 +258,116 @@ pub fn check_r7(file: &Path, doc: &WorkflowDoc) -> Vec<Finding> {
     out
 }
 
+/// R5 — 임포스터 커밋 검증 (`--online`, 🔴).
+///
+/// 핀된 SHA가 그 저장소의 정식 히스토리에서 도달 가능한가는 조회 가능한 사실이다.
+/// 도달 불가 = 포크 등에 숨긴 커밋을 핀에 꽂은 임포스터 신호 (TeamPCP Trivy 수법).
+pub fn check_r5(
+    file: &Path,
+    entries: &[UsesEntry],
+    facts: &dyn GithubFacts,
+    ctx: &TrustContext,
+) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for e in entries {
+        let UsesRef::Repository {
+            owner_repo,
+            git_ref: Some(RefKind::CommitSha(sha)),
+        } = uses_ref::parse(&e.value)
+        else {
+            continue;
+        };
+        if ctx.classify(&owner_repo) == Trust::FirstParty {
+            continue;
+        }
+        let repo = uses_ref::repo_root(&owner_repo);
+        match facts.commit_reachable(repo, &sha) {
+            Ok(Some(true)) | Ok(None) => {}
+            Ok(Some(false)) => out.push(Finding {
+                rule: "R5",
+                severity: Severity::High,
+                file: file.display().to_string(),
+                line: e.line,
+                uses: e.value.clone(),
+                evidence: format!(
+                    "핀된 커밋 {sha}이(가) `{repo}`의 정식 히스토리에서 도달 불가합니다 — \
+                     포크에 숨긴 커밋을 꽂은 임포스터 커밋 신호 (TeamPCP의 Trivy 공격이 이 수법)"
+                ),
+                fix_hint: "이 SHA의 출처를 확인하고, 업스트림 정식 릴리스의 SHA로 교체하세요"
+                    .into(),
+            }),
+            Err(_) => out.push(Finding {
+                rule: "R5",
+                severity: Severity::Info,
+                file: file.display().to_string(),
+                line: e.line,
+                uses: e.value.clone(),
+                evidence: format!(
+                    "`{repo}@{sha}`의 도달 가능성을 확인하지 못했습니다 — 판정 보류 \
+                     (확인 불가는 오탐을 만들지 않습니다)"
+                ),
+                fix_hint: "네트워크 상태를 확인하고 다시 시도하세요".into(),
+            }),
+        }
+    }
+    out
+}
+
+/// R10 — 쿨다운: 발행된 지 기준 일수가 안 된 참조 경고 (`--online`, 🟡).
+///
+/// 제로데이를 탐지하는 게 아니라 미검증 기간을 회피하는 전략이다 (CONTEXT.md).
+/// 시각을 알 수 없는 참조는 판정하지 않는다 (추측 금지).
+pub fn check_r10(
+    file: &Path,
+    entries: &[UsesEntry],
+    facts: &dyn GithubFacts,
+    ctx: &TrustContext,
+    cooldown_days: u32,
+    now: i64,
+) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let threshold = i64::from(cooldown_days) * 86_400;
+    for e in entries {
+        let UsesRef::Repository {
+            owner_repo,
+            git_ref: Some(_),
+        } = uses_ref::parse(&e.value)
+        else {
+            continue;
+        };
+        if ctx.classify(&owner_repo) == Trust::FirstParty {
+            continue;
+        }
+        let repo = uses_ref::repo_root(&owner_repo);
+        let git_ref = e.value.split_once('@').map(|(_, r)| r).unwrap_or_default();
+        let Ok(Some(ts)) = facts.ref_timestamp(repo, git_ref) else {
+            continue;
+        };
+        let age = now - ts;
+        if age >= threshold {
+            continue;
+        }
+        let age_days = age / 86_400;
+        out.push(Finding {
+            rule: "R10",
+            severity: Severity::Medium,
+            file: file.display().to_string(),
+            line: e.line,
+            uses: e.value.clone(),
+            evidence: format!(
+                "이 참조는 발행된 지 {age_days}일밖에 안 됐습니다 (기준 {cooldown_days}일) — \
+                 갓 나온 버전은 아직 아무도 검증하지 않은 버전입니다. 오염은 보통 며칠 내 \
+                 발각되므로, 숙성 기간은 미검증 창(제로데이 창)을 회피하는 전략입니다"
+            ),
+            fix_hint: format!(
+                "{cooldown_days}일이 지난 뒤 도입하거나, 검증된 이전 버전을 사용하세요 \
+                 (기준 조정: --cooldown-days)"
+            ),
+        });
+    }
+    out
+}
+
 /// LOCK — shield.lock 박제본 대비 태그 이동 탐지 (ADR-0003).
 ///
 /// 박제 SHA ≠ 현재 SHA는 조회 가능한 사실이다. 단 `v4` 같은 메이저 별칭과 브랜치는
