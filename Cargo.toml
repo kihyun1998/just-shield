@@ -1,6 +1,11 @@
 [package]
 name = "just-shield"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
+
+# 릴리스 바이너리 최적화 — 의존성 0의 단일 바이너리를 작고 재현 가능하게.
+[profile.release]
+strip = true
+lto = true

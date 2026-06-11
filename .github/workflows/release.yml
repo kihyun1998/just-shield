@@ -1,0 +1,108 @@
+# just-shield 릴리스 자동화 (ADR-0005 단계 ⓪).
+# v* 태그 푸시 → ① 채점표 게이트 → ② 6종 대상 병렬 빌드 → ③ SHA256SUMS + 빌드 출처 증명 → ④ 릴리스 첨부.
+# 서드파티 빌드 도구·액션 없이 직접 작성한다 — 공식 바이너리를 만드는 사슬에 서드파티를 넣지 않는다.
+# 이 워크플로 자체가 우리 규칙(SHA 핀, 최소 권한)을 지켜 dogfood 검사를 통과해야 한다.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  # ① 게이트가 깨지면 빌드도 릴리스도 없다 — 테스트 깨진 커밋에 태그를 붙여도 안전.
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: 태그와 Cargo.toml 버전 일치 확인
+        run: |
+          crate_version="$(grep -m1 '^version' Cargo.toml | cut -d '"' -f 2)"
+          if [ "v${crate_version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "태그 ${GITHUB_REF_NAME} ≠ Cargo.toml v${crate_version} — 버전을 맞추고 다시 태그하세요" >&2
+            exit 1
+          fi
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: 채점표 게이트 (유닛 + 통합 + 코퍼스)
+        run: cargo test
+      - name: 자기 검사 (dogfood)
+        run: cargo run --quiet -- scan . --strict
+
+  # ② 6종 대상 병렬 빌드. Linux는 musl 정적 링크 — 시스템 라이브러리 의존 0.
+  build:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          - target: aarch64-pc-windows-msvc
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: musl 링커 설치 (Linux)
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: 아카이브 작성 (tar.gz)
+        if: runner.os != 'Windows'
+        run: |
+          name="just-shield-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir "${name}"
+          cp "target/${{ matrix.target }}/release/just-shield" README.md "${name}/"
+          tar -czf "${name}.tar.gz" "${name}"
+      - name: 아카이브 작성 (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "just-shield-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/just-shield.exe", "README.md" $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            just-shield-*.tar.gz
+            just-shield-*.zip
+          if-no-files-found: error
+
+  # ③+④ 체크섬 → 출처 증명 → 릴리스. 쓰기 권한은 이 잡에만 부여한다.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS 생성
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+      - name: 빌드 출처 증명 발급
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: dist/*
+      - name: GitHub 릴리스 생성
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
