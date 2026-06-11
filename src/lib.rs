@@ -12,6 +12,7 @@ pub mod report;
 pub mod rules;
 pub mod suppress;
 pub mod trust;
+pub mod typosquat;
 pub mod uses_ref;
 pub mod workflow;
 
@@ -91,6 +92,7 @@ pub fn scan_with_options(root: &Path, options: &ScanOptions) -> std::io::Result<
 
         let mut file_findings = Vec::new();
         file_findings.extend(rules::check_r1(rel, &entries, &ctx));
+        file_findings.extend(rules::check_r2(rel, &entries, &ctx, facts));
         file_findings.extend(rules::check_r3(rel, &doc));
         file_findings.extend(rules::check_r4(rel, &entries, &images));
         file_findings.extend(rules::check_r6(rel, &doc, &ctx));

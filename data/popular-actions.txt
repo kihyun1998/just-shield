@@ -1,0 +1,36 @@
+# just-shield 유명 액션 목록 — R2 타이포스쿼팅 비교 기준.
+#
+# 형식: 한 줄에 하나, `owner/repo`. 대소문자 구분 없음. `#`은 주석.
+#
+# 갱신 절차 (릴리스 시):
+#   1. 널리 쓰이는 액션(마켓플레이스 상위, 생태계 표준)을 추가한다.
+#   2. 추가 전 기존 항목과 편집 거리 1 이내로 충돌하지 않는지 확인한다 —
+#      목록 내부 충돌은 서로를 짝퉁으로 의심하게 만든다.
+#   3. 목록은 바이너리에 동봉되므로 갱신 = 새 릴리스.
+
+actions/checkout
+actions/setup-node
+actions/setup-python
+actions/setup-java
+actions/setup-go
+actions/cache
+actions/upload-artifact
+actions/download-artifact
+actions/github-script
+github/codeql-action
+docker/build-push-action
+docker/setup-buildx-action
+docker/login-action
+docker/metadata-action
+aquasecurity/trivy-action
+checkmarx/kics-github-action
+codecov/codecov-action
+softprops/action-gh-release
+peter-evans/create-pull-request
+stefanzweifel/git-auto-commit-action
+dtolnay/rust-toolchain
+pnpm/action-setup
+ruby/setup-ruby
+azure/login
+aws-actions/configure-aws-credentials
+google-github-actions/auth
