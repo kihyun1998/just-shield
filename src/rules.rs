@@ -2,7 +2,7 @@
 
 use crate::github_facts::GithubFacts;
 use crate::lockfile::Lockfile;
-use crate::trust::{self, Trust};
+use crate::trust::{Trust, TrustContext};
 use crate::uses_ref::{self, RefKind, UsesRef};
 use crate::workflow::{UsesEntry, WorkflowDoc};
 use std::path::Path;
@@ -30,11 +30,17 @@ pub struct Finding {
     pub fix_hint: String,
 }
 
+/// 무시 주석으로 수용된 발견 — 결과에서 지우지 않고 사유와 함께 남긴다 (침묵 ≠ 은폐).
+pub struct Suppressed {
+    pub finding: Finding,
+    pub reason: String,
+}
+
 /// R1 — 액션의 가변 참조(태그/브랜치/참조 없음) 탐지.
 ///
 /// 신뢰 차등: 퍼스트파티(로컬·같은 소유자)는 침묵, GitHub 공식은 🔵 안내,
 /// 그 외 서드파티는 🔴 — 보안 벤더라는 평판도 예외가 아니다 (TeamPCP의 교훈).
-pub fn check_r1(file: &Path, entries: &[UsesEntry], repo_owner: Option<&str>) -> Vec<Finding> {
+pub fn check_r1(file: &Path, entries: &[UsesEntry], ctx: &TrustContext) -> Vec<Finding> {
     let mut out = Vec::new();
     for e in entries {
         let UsesRef::Repository {
@@ -45,7 +51,7 @@ pub fn check_r1(file: &Path, entries: &[UsesEntry], repo_owner: Option<&str>) ->
             // 로컬 액션은 퍼스트파티, docker://는 R4(이미지)의 영역.
             continue;
         };
-        let trust = trust::classify(&owner_repo, repo_owner);
+        let trust = ctx.classify(&owner_repo);
         if trust == Trust::FirstParty {
             continue;
         }
@@ -88,7 +94,7 @@ pub fn check_r1(file: &Path, entries: &[UsesEntry], repo_owner: Option<&str>) ->
 /// R6 — 시크릿을 사용하는 잡에서 서드파티 액션 실행 (🟡).
 ///
 /// 액션 코드는 같은 잡의 시크릿에 접근 가능한 환경에서 돈다 — 오염되면 함께 털린다.
-pub fn check_r6(file: &Path, doc: &WorkflowDoc, repo_owner: Option<&str>) -> Vec<Finding> {
+pub fn check_r6(file: &Path, doc: &WorkflowDoc, ctx: &TrustContext) -> Vec<Finding> {
     let mut out = Vec::new();
     for job in &doc.jobs {
         if !job.uses_secrets {
@@ -99,7 +105,7 @@ pub fn check_r6(file: &Path, doc: &WorkflowDoc, repo_owner: Option<&str>) -> Vec
             let UsesRef::Repository { owner_repo, .. } = uses_ref::parse(uses) else {
                 continue;
             };
-            if trust::classify(&owner_repo, repo_owner) != Trust::ThirdParty {
+            if ctx.classify(&owner_repo) != Trust::ThirdParty {
                 continue;
             }
             out.push(Finding {
@@ -188,6 +194,7 @@ pub fn check_lock(
     entries: &[UsesEntry],
     lockfile: &Lockfile,
     facts: Option<&dyn GithubFacts>,
+    ctx: &TrustContext,
 ) -> Vec<Finding> {
     let mut out = Vec::new();
     for e in entries {
@@ -198,6 +205,10 @@ pub fn check_lock(
         else {
             continue;
         };
+        // 퍼스트파티는 섭취 검증 대상이 아니다 (CONTEXT.md) — LOCK도 Tier 1 규칙.
+        if ctx.classify(&owner_repo) == Trust::FirstParty {
+            continue;
+        }
         let repo = uses_ref::repo_root(&owner_repo).to_string();
         let Some(locked_sha) = lockfile.get(&repo, &git_ref) else {
             out.push(Finding {

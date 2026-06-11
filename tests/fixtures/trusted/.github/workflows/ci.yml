@@ -1,0 +1,10 @@
+name: CI
+on: push
+permissions:
+  contents: read
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: vendor/tool@v1
+      - uses: stranger/tool@v1

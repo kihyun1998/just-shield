@@ -38,14 +38,26 @@ pub fn render(result: &ScanResult, strict: bool) -> String {
         s.push_str(&format!("   근거: {}\n", f.evidence));
         s.push_str(&format!("   해결: {}\n\n", f.fix_hint));
     }
+    if !result.suppressed.is_empty() {
+        s.push_str("무시됨 (사유 필수 주석으로 수용):\n");
+        for sp in &result.suppressed {
+            let f = &sp.finding;
+            s.push_str(&format!("⚪ {}  {}:{}\n", f.rule, f.file, f.line));
+            if !f.uses.is_empty() {
+                s.push_str(&format!("   uses: {}\n", f.uses));
+            }
+            s.push_str(&format!("   사유: {}\n\n", sp.reason));
+        }
+    }
     let (high, medium, info) = tier_counts(result);
     let status = if exit_code(result, strict) == 0 {
         "통과"
     } else {
         "빌드 실패"
     };
+    let suppressed = result.suppressed.len();
     s.push_str(&format!(
-        "요약: 🔴 {high}건 · 🟡 {medium}건 · 🔵 {info}건 — {status}\n"
+        "요약: 🔴 {high}건 · 🟡 {medium}건 · 🔵 {info}건 · ⚪ 무시 {suppressed}건 — {status}\n"
     ));
     s
 }
@@ -62,7 +74,8 @@ pub fn render_json(result: &ScanResult, strict: bool) -> String {
         result.workflows_scanned
     ));
     s.push_str(&format!(
-        "  \"summary\": {{ \"high\": {high}, \"medium\": {medium}, \"info\": {info} }},\n"
+        "  \"summary\": {{ \"high\": {high}, \"medium\": {medium}, \"info\": {info}, \"suppressed\": {} }},\n",
+        result.suppressed.len()
     ));
     s.push_str(&format!(
         "  \"exit_code\": {},\n",
@@ -90,6 +103,28 @@ pub fn render_json(result: &ScanResult, strict: bool) -> String {
         s.push_str("    }");
     }
     if result.findings.is_empty() {
+        s.push_str("],\n");
+    } else {
+        s.push_str("\n  ],\n");
+    }
+    s.push_str("  \"suppressed\": [");
+    for (i, sp) in result.suppressed.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        let f = &sp.finding;
+        s.push_str("\n    {\n");
+        s.push_str(&format!("      \"rule\": \"{}\",\n", esc(f.rule)));
+        s.push_str(&format!(
+            "      \"file\": \"{}\",\n",
+            esc(&f.file.replace('\\', "/"))
+        ));
+        s.push_str(&format!("      \"line\": {},\n", f.line));
+        s.push_str(&format!("      \"uses\": \"{}\",\n", esc(&f.uses)));
+        s.push_str(&format!("      \"reason\": \"{}\"\n", esc(&sp.reason)));
+        s.push_str("    }");
+    }
+    if result.suppressed.is_empty() {
         s.push_str("]\n");
     } else {
         s.push_str("\n  ]\n");

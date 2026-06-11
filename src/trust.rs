@@ -18,21 +18,43 @@ pub enum Trust {
 
 const OFFICIAL_OWNERS: &[&str] = &["actions", "github"];
 
-/// `owner/repo(/sub)` 참조의 소유자를 분류한다.
-pub fn classify(owner_repo: &str, repo_owner: Option<&str>) -> Trust {
-    let owner = owner_repo.split('/').next().unwrap_or("");
-    if let Some(mine) = repo_owner
-        && owner.eq_ignore_ascii_case(mine)
-    {
-        return Trust::FirstParty;
+/// 신뢰 판정에 필요한 문맥 — 저장소 소유자 + 설정으로 선언된 신뢰 org.
+pub struct TrustContext {
+    repo_owner: Option<String>,
+    trusted_owners: Vec<String>,
+}
+
+impl TrustContext {
+    pub fn new(repo_owner: Option<String>, trusted_owners: Vec<String>) -> Self {
+        Self {
+            repo_owner,
+            trusted_owners,
+        }
     }
-    if OFFICIAL_OWNERS
-        .iter()
-        .any(|o| owner.eq_ignore_ascii_case(o))
-    {
-        return Trust::Official;
+
+    /// `owner/repo(/sub)` 참조의 소유자를 분류한다.
+    pub fn classify(&self, owner_repo: &str) -> Trust {
+        let owner = owner_repo.split('/').next().unwrap_or("");
+        if let Some(mine) = &self.repo_owner
+            && owner.eq_ignore_ascii_case(mine)
+        {
+            return Trust::FirstParty;
+        }
+        if self
+            .trusted_owners
+            .iter()
+            .any(|t| owner.eq_ignore_ascii_case(t))
+        {
+            return Trust::FirstParty;
+        }
+        if OFFICIAL_OWNERS
+            .iter()
+            .any(|o| owner.eq_ignore_ascii_case(o))
+        {
+            return Trust::Official;
+        }
+        Trust::ThirdParty
     }
-    Trust::ThirdParty
 }
 
 /// `.git/config`의 origin URL에서 GitHub 소유자를 읽는다. 실패하면 None.
@@ -77,27 +99,50 @@ fn owner_from_url(url: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Trust, classify, owner_from_git_config};
+    use super::{Trust, TrustContext, owner_from_git_config};
+
+    fn ctx(repo_owner: Option<&str>, trusted: &[&str]) -> TrustContext {
+        TrustContext::new(
+            repo_owner.map(str::to_string),
+            trusted.iter().map(|s| s.to_string()).collect(),
+        )
+    }
 
     #[test]
     fn same_owner_is_first_party_case_insensitive() {
-        assert_eq!(classify("MyOrg/tool", Some("myorg")), Trust::FirstParty);
+        assert_eq!(
+            ctx(Some("myorg"), &[]).classify("MyOrg/tool"),
+            Trust::FirstParty
+        );
+    }
+
+    #[test]
+    fn configured_trusted_org_is_first_party() {
+        let c = ctx(Some("myorg"), &["partner-org"]);
+        assert_eq!(c.classify("Partner-Org/tool"), Trust::FirstParty);
+        assert_eq!(c.classify("stranger/tool"), Trust::ThirdParty);
     }
 
     #[test]
     fn github_owned_actions_are_official() {
-        assert_eq!(classify("actions/checkout", Some("myorg")), Trust::Official);
-        assert_eq!(classify("github/codeql-action", None), Trust::Official);
+        assert_eq!(
+            ctx(Some("myorg"), &[]).classify("actions/checkout"),
+            Trust::Official
+        );
+        assert_eq!(
+            ctx(None, &[]).classify("github/codeql-action"),
+            Trust::Official
+        );
     }
 
     #[test]
     fn everyone_else_is_third_party_even_security_vendors() {
         assert_eq!(
-            classify("aquasecurity/trivy-action", Some("myorg")),
+            ctx(Some("myorg"), &[]).classify("aquasecurity/trivy-action"),
             Trust::ThirdParty
         );
         // 소유자 판별 불가 → 안전한 쪽: 서드파티
-        assert_eq!(classify("myorg/tool", None), Trust::ThirdParty);
+        assert_eq!(ctx(None, &[]).classify("myorg/tool"), Trust::ThirdParty);
     }
 
     #[test]
