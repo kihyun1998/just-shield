@@ -43,7 +43,7 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
                 i += 1;
                 cli.format = args
                     .get(i)
-                    .ok_or("--format 뒤에 값이 필요합니다 (text|json)")?
+                    .ok_or("--format 뒤에 값이 필요합니다 (text|json|sarif)")?
                     .clone();
             }
             a if a.starts_with("--format=") => cli.format = a["--format=".len()..].to_string(),
@@ -52,8 +52,11 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
         }
         i += 1;
     }
-    if !matches!(cli.format.as_str(), "text" | "json") {
-        return Err(format!("지원하지 않는 형식: {} (text|json)", cli.format));
+    if !matches!(cli.format.as_str(), "text" | "json" | "sarif") {
+        return Err(format!(
+            "지원하지 않는 형식: {} (text|json|sarif)",
+            cli.format
+        ));
     }
     cli.command = positional.first().cloned();
     if let Some(p) = positional.get(1) {
@@ -84,6 +87,7 @@ fn main() -> ExitCode {
                 Ok(result) => {
                     let output = match cli.format.as_str() {
                         "json" => just_shield::report::render_json(&result, cli.strict),
+                        "sarif" => just_shield::report::render_sarif(&result),
                         _ => just_shield::report::render(&result, cli.strict),
                     };
                     print!("{output}");
@@ -141,7 +145,7 @@ fn main() -> ExitCode {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--cooldown-days N] [--format text|json]"
+        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--cooldown-days N] [--format text|json|sarif]"
     );
     ExitCode::from(2)
 }

@@ -143,6 +143,127 @@ pub fn render_json(result: &ScanResult, strict: bool) -> String {
     s
 }
 
+/// SARIF 규칙 메타데이터 — id와 짧은 설명. `ruleIndex`는 이 배열의 위치다.
+/// 결과에 등장하지 않는 규칙도 항상 전부 싣는다 — 출력이 입력에 따라 흔들리지 않도록.
+const RULE_METADATA: &[(&str, &str)] = &[
+    (
+        "R1",
+        "서드파티 액션의 가변 참조(태그/브랜치) — 태그 하이재킹에 노출",
+    ),
+    ("R2", "유명 액션과 한 글자 차이 — 타이포스쿼팅 의심"),
+    ("R3", "curl | sh류 미검증 파이프 설치"),
+    ("R4", "다이제스트 없는 컨테이너 이미지 참조"),
+    (
+        "R5",
+        "핀된 SHA가 저장소 정식 히스토리에서 도달 불가 — 임포스터 커밋",
+    ),
+    ("R6", "시크릿을 쓰는 잡에서 서드파티 액션 실행"),
+    ("R7", "permissions 미선언 또는 write-all"),
+    (
+        "R8",
+        "위험 트리거(pull_request_target 등)와 외부 PR 체크아웃 조합",
+    ),
+    ("R9", "공개 권고에 악성으로 등재된 버전/커밋 사용"),
+    ("R10", "발행 후 쿨다운(검증 기간) 미경과 참조"),
+    ("LOCK", "shield.lock 박제본 대비 태그 이동"),
+];
+
+fn sarif_level(s: Severity) -> &'static str {
+    match s {
+        Severity::High => "error",
+        Severity::Medium => "warning",
+        Severity::Info => "note",
+    }
+}
+
+fn rule_index(rule: &str) -> usize {
+    RULE_METADATA
+        .iter()
+        .position(|(id, _)| *id == rule)
+        .unwrap_or(0)
+}
+
+/// SARIF 2.1.0 리포트 — GitHub 코드 스캐닝 업로드용.
+/// 무시된 발견은 결과에서 빠지지 않고 `suppressions`로 표시된다 (침묵 ≠ 은폐).
+pub fn render_sarif(result: &ScanResult) -> String {
+    let mut s = String::new();
+    s.push_str("{\n");
+    s.push_str("  \"$schema\": \"https://json.schemastore.org/sarif-2.1.0.json\",\n");
+    s.push_str("  \"version\": \"2.1.0\",\n");
+    s.push_str("  \"runs\": [\n    {\n");
+    s.push_str("      \"tool\": {\n        \"driver\": {\n");
+    s.push_str("          \"name\": \"just-shield\",\n");
+    s.push_str(&format!(
+        "          \"version\": \"{}\",\n",
+        env!("CARGO_PKG_VERSION")
+    ));
+    s.push_str("          \"informationUri\": \"https://github.com/kihyun1998/just-shield\",\n");
+    s.push_str("          \"rules\": [");
+    for (i, (id, desc)) in RULE_METADATA.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(&format!(
+            "\n            {{ \"id\": \"{}\", \"shortDescription\": {{ \"text\": \"{}\" }} }}",
+            esc(id),
+            esc(desc)
+        ));
+    }
+    s.push_str("\n          ]\n        }\n      },\n");
+    s.push_str("      \"results\": [");
+    let mut first = true;
+    let mut push_result = |s: &mut String, f: &crate::rules::Finding, reason: Option<&str>| {
+        if !first {
+            s.push(',');
+        }
+        first = false;
+        let message = if f.uses.is_empty() {
+            format!("{} — 해결: {}", f.evidence, f.fix_hint)
+        } else {
+            format!("uses: {} — {} — 해결: {}", f.uses, f.evidence, f.fix_hint)
+        };
+        s.push_str("\n        {\n");
+        s.push_str(&format!("          \"ruleId\": \"{}\",\n", esc(f.rule)));
+        s.push_str(&format!(
+            "          \"ruleIndex\": {},\n",
+            rule_index(f.rule)
+        ));
+        s.push_str(&format!(
+            "          \"level\": \"{}\",\n",
+            sarif_level(f.severity)
+        ));
+        s.push_str(&format!(
+            "          \"message\": {{ \"text\": \"{}\" }},\n",
+            esc(&message)
+        ));
+        s.push_str(&format!(
+            "          \"locations\": [{{ \"physicalLocation\": {{ \"artifactLocation\": {{ \"uri\": \"{}\" }}, \"region\": {{ \"startLine\": {} }} }} }}]",
+            esc(&f.file.replace('\\', "/")),
+            f.line.max(1)
+        ));
+        if let Some(reason) = reason {
+            s.push_str(&format!(
+                ",\n          \"suppressions\": [{{ \"kind\": \"inSource\", \"justification\": \"{}\" }}]",
+                esc(reason)
+            ));
+        }
+        s.push_str("\n        }");
+    };
+    for f in &result.findings {
+        push_result(&mut s, f, None);
+    }
+    for sp in &result.suppressed {
+        push_result(&mut s, &sp.finding, Some(&sp.reason));
+    }
+    if first {
+        s.push_str("]\n");
+    } else {
+        s.push_str("\n      ]\n");
+    }
+    s.push_str("    }\n  ]\n}\n");
+    s
+}
+
 fn severity_name(s: Severity) -> &'static str {
     match s {
         Severity::High => "high",
