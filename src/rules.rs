@@ -19,6 +19,7 @@ pub enum Severity {
 }
 
 /// 규칙 위반 한 건. 모든 발견에는 근거와 해결 힌트가 붙는다 (ADR-0002 원칙 ③).
+#[derive(Clone)]
 pub struct Finding {
     pub rule: &'static str,
     pub severity: Severity,

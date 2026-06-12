@@ -1,0 +1,5 @@
+# 잠그지 않은 build 잡 — 무엇을 조회하든 실패하지 않고 초안만 제안된다.
+job build
+index.crates.io
+static.crates.io
+totally-new-domain.example
