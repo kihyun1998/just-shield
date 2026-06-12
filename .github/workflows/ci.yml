@@ -52,4 +52,12 @@ jobs:
       - uses: ./
         with:
           mode: observe
-      - run: curl -sS https://crates.io > /dev/null || true # 관찰될 통신 한 건 (DNS 질의 발생이 목적)
+      - run: curl -sS https://crates.io > /dev/null || true # 관찰될 통신 한 건
+      # 관찰자가 실제로 사용자 스텝의 DNS를 기록했는지 단언한다 — "기록 없음→통과"라는
+      # 맹점을 막는다(이전엔 관찰자가 죽어도 셀프 테스트가 초록불이었다).
+      - name: 관찰이 실제로 동작했는지 단언
+        run: |
+          rec="${RUNNER_TEMP}/just-shield-record.txt"
+          test -s "$rec" || { echo "기록이 비었습니다 — 관찰자가 사용자 스텝을 못 봤습니다" >&2; exit 1; }
+          grep -q "crates.io" "$rec" || { echo "기록에 crates.io가 없습니다:" >&2; cat "$rec" >&2; exit 1; }
+          echo "✅ 관찰자가 사용자 스텝의 DNS(crates.io)를 기록했다"
