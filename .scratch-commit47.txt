@@ -1,0 +1,16 @@
+Implement V2-S4: Action mode observe — one-block UX + job-end post hook (#47)
+
+- action.yml: node24 entry point (main + post). Composite actions have no
+  job-end hook, which observe mode needs. index.js is a dispatcher that shells
+  out to bash -- zero npm deps, verdict stays in Rust.
+- index.js: main spawns observe-start.sh (observe) or run.sh (scan); post runs
+  observe-report.sh only in observe mode. State flag ensures post fires.
+- scripts/observe-start.sh: download + checksum-verify binary, start observer
+  in background (survives the step), Linux-only with fail-open on other archs.
+- scripts/observe-report.sh: kill observer, run verdict, render to job summary;
+  runs even if user steps failed; unlisted destination makes the job red.
+- ci.yml: observe-selftest job validates the one-block UX + post hook on a real
+  ubuntu runner (unlocked job reports only, never fails).
+- scan mode unchanged: run.sh still drives it via index.js.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

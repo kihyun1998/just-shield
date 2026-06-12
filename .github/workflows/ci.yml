@@ -42,3 +42,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y dnsutils
       - run: cargo build --release
       - run: bash tests/e2e/egress-e2e.sh target/release/just-shield
+  # 래퍼 observe 모드 셀프 테스트 (이슈 #47) — 한 블록 UX가 잡 시작 관찰 +
+  # 잡 종료 보고(post 훅)까지 동작하는지 확인한다. 이 잡은 잠그지 않았으므로
+  # 관찰 보고만 하고 실패하지 않아야 한다 (잠금 선택제).
+  observe-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: ./
+        with:
+          mode: observe
+      - run: curl -sS https://crates.io > /dev/null || true # 관찰될 통신 한 건 (DNS 질의 발생이 목적)
