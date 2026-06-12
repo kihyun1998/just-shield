@@ -55,12 +55,17 @@ sleep 1
 stop_observer
 
 echo "── 기록(공격) ──"; cat "${REC}"
-if "${BIN}" observe report "${WORK}" --record "${REC}"; then
-  fail "공격 경로: 미등재 도메인인데 통과했습니다 (🔴가 나와야 함)"
-fi
-"${BIN}" observe report "${WORK}" --record "${REC}" | grep -q "data-collect.evil.example" \
-  || fail "공격 경로: 보고에 미등재 도메인이 특정되지 않았습니다"
-echo "✅ 공격 경로: 미등재 조회가 🔴로 잡혔다"
+# 출력과 종료 코드를 한 번에 잡는다. pipefail이 report의 exit 1을 삼키지 않도록
+# 파이프 대신 변수로 받는다.
+set +e
+ATTACK_OUT="$("${BIN}" observe report "${WORK}" --record "${REC}")"
+ATTACK_CODE=$?
+set -e
+[ "${ATTACK_CODE}" -eq 1 ] || fail "공격 경로: 🔴(exit 1)가 나와야 합니다 (got ${ATTACK_CODE})"
+case "${ATTACK_OUT}" in
+  *data-collect.evil.example*) echo "✅ 공격 경로: 미등재 조회가 🔴로 잡혔다 (도메인 특정됨)" ;;
+  *) fail "공격 경로: 보고에 미등재 도메인이 특정되지 않았습니다" ;;
+esac
 
 # ── 2. 양성 경로 ────────────────────────────────────────────────
 REC="${WORK}/record-benign.txt"
