@@ -5,7 +5,8 @@
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 
-const actionPath = process.env.GITHUB_ACTION_PATH;
+// JS 액션은 GITHUB_ACTION_PATH가 없다(composite 전용) — 이 파일 위치가 곧 액션 루트.
+const actionPath = __dirname;
 const mode = process.env.INPUT_MODE || "scan";
 const isPost = process.env.STATE_isPost === "true";
 
