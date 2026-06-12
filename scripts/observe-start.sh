@@ -39,10 +39,22 @@ tar -xzf "${name}.tar.gz"
 cp "${name}/just-shield" "$bin"
 chmod +x "$bin"
 
-# 관찰자를 백그라운드로 띄운다 — 이 스크립트가 끝나도 살아남아야 한다.
+# 관찰자를 백그라운드로 띄운다 — 이 액션 스텝이 끝나도 이후 사용자 스텝 동안
+# 살아 있어야 한다. setsid로 새 세션을 만들어 스텝 정리(프로세스 그룹 종료)에서
+# 분리한다 — 그냥 nohup만으로는 스텝 종료 시 함께 죽는다.
 # 53번 바인드 + resolv.conf 수정에 sudo가 필요하다(러너는 무암호 sudo).
-sudo nohup "$bin" observe start --job "$JS_JOB" --record "$record" \
-  > "${RUNNER_TEMP}/just-shield-observer.log" 2>&1 &
+sudo setsid "$bin" observe start --job "$JS_JOB" --record "$record" \
+  < /dev/null > "${RUNNER_TEMP}/just-shield-observer.log" 2>&1 &
 disown 2> /dev/null || true
-sleep 2
-echo "👁 관찰 시작: 잡 '${JS_JOB}'의 DNS 질의를 기록합니다 (잡 끝에 보고)"
+
+# 관찰자가 기록 파일을 만들 때까지(=serve 진입) 최대 10초 대기 — 못 만들면 fail-open.
+for _ in $(seq 1 20); do
+  [ -f "$record" ] && break
+  sleep 0.5
+done
+if [ -f "$record" ]; then
+  echo "👁 관찰 시작: 잡 '${JS_JOB}'의 DNS 질의를 기록합니다 (잡 끝에 보고)"
+else
+  echo "관찰 비활성: 관찰자가 기동하지 못했습니다 (정상 진행, fail-open)" >&2
+  cat "${RUNNER_TEMP}/just-shield-observer.log" >&2 || true
+fi
