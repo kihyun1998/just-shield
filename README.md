@@ -49,11 +49,10 @@ sha256sum -c SHA256SUMS --ignore-missing
 gh attestation verify just-shield-*.tar.gz --repo kihyun1998/just-shield
 ```
 
-소스 빌드도 가능하다 (Rust 툴체인 필요):
+Rust 툴체인이 있으면 crates.io에서 바로 설치할 수도 있다 — 사전 빌드 바이너리가 없는 플랫폼의 만능 탈출구:
 
 ```bash
-git clone https://github.com/kihyun1998/just-shield && cd just-shield
-cargo install --path .
+cargo install just-shield
 ```
 
 ## GitHub Action으로 사용
@@ -200,3 +199,7 @@ cargo clippy   # 린트
 **채점표 게이트** (`tests/corpus/`, ADR-0002 원칙 ④): TeamPCP 캠페인을 재현한 공격 코퍼스는 전부 탐지돼야 하고(미탐 0), 실제 워크플로를 본뜬 양성 코퍼스에서 🔴 오탐이 하나도 없어야 한다. CI는 마지막에 just-shield로 자기 저장소를 검사한다(dogfood). 코퍼스 추가 절차는 [tests/corpus/README.md](tests/corpus/README.md).
 
 모든 판정은 사실 기반이어야 한다 — 빌드를 깨뜨리는 🔴는 검증 가능한 사실에서만 나온다 ([ADR-0002](docs/adr/0002-fact-based-verdicts.md)).
+
+## 라이선스
+
+[MIT](LICENSE-MIT) 또는 [Apache-2.0](LICENSE-APACHE) 중 원하는 쪽을 선택해 사용한다 (Rust 생태계 관례의 이중 라이선스).
