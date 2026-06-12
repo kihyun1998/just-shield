@@ -1,0 +1,13 @@
+# 재현: CVE-2025-30154 (2025-03-11) — reviewdog/action-setup v1 태그 오염으로 주입된
+# 실제 악성 커밋 (tj-actions 사건의 선행 공격, CISA KEV 등재). SHA로 핀 고정해도
+# 그 SHA 자체가 악성이면 소용없다 — 동봉 권고 DB(R9)가 오프라인으로 잡아야 한다.
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: reviewdog/action-setup@f0d342d24037bb11d26b9bd8496e0808ba32e9ec

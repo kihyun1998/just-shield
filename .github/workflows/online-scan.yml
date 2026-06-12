@@ -1,0 +1,18 @@
+# 주 1회 온라인 검사 — 오프라인 CI가 못 보는 것을 본다:
+# R5(핀해둔 SHA가 원본 저장소 정식 히스토리에 실존·도달 가능한지 = 임포스터 점검),
+# R10(쿨다운), LOCK(태그 이동). 우리 핀이 가리키는 커밋이 어느 날 사라지거나
+# 강제 푸시로 고아가 되면 여기서 빨간불이 든다.
+name: online-scan
+on:
+  schedule:
+    - cron: "0 1 * * 1" # 매주 월요일 01:00 UTC
+  workflow_dispatch: {} # 수동 실행 버튼
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: 온라인 검사 (R5 임포스터 · R10 쿨다운 · LOCK)
+        run: cargo run --quiet -- scan . --online --strict

@@ -1,0 +1,39 @@
+# 월 1회 권고 DB 점검 리마인더 — R9는 data/advisories.txt가 살아 있어야 의미가 있다.
+# 자동 수집이 아니라 사람에게 점검 이슈를 여는 것까지만 한다: "공개 권고에 등재된
+# 사실"만 DB에 넣는다는 ADR-0002 원칙상, 등재 판단은 사람이 한다.
+name: advisory-reminder
+on:
+  schedule:
+    - cron: "0 1 1 * *" # 매월 1일 01:00 UTC
+  workflow_dispatch: {} # 수동 실행 버튼
+permissions:
+  contents: read
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # 점검 이슈 생성
+    steps:
+      - name: 점검 이슈 열기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          month="$(date -u +%Y-%m)"
+          title="권고 DB 월간 점검 (${month})"
+          existing="$(gh issue list --repo "${GITHUB_REPOSITORY}" --search "in:title \"${title}\"" --json number --jq length)"
+          if [ "$existing" != "0" ]; then
+            echo "이미 열려 있음 — 건너뜀"
+            exit 0
+          fi
+          gh issue create --repo "${GITHUB_REPOSITORY}" \
+            --title "${title}" \
+            --label needs-triage \
+            --body "$(printf '%s\n' \
+              '`data/advisories.txt` 갱신 절차 (파일 머리말과 동일):' \
+              '' \
+              '- [ ] GitHub Advisory(GHSA)/OSV/CISA에서 지난달 이후 GitHub Actions 오염 권고 검색' \
+              '- [ ] 등재된 사실만 항목 추가 (추측 금지 — ADR-0002)' \
+              '- [ ] 항목마다 미탐 코퍼스 픽스처 동반 (tests/corpus/attacks/)' \
+              '- [ ] 새 항목이 있으면 패치 릴리스 (DB는 바이너리 동봉 — 갱신 = 릴리스)' \
+              '- [ ] 새 항목이 없으면 그 사실을 코멘트로 남기고 닫기')"
