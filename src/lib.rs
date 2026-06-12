@@ -5,6 +5,7 @@
 
 pub mod advisory;
 pub mod config;
+pub mod dns_observer;
 pub mod egress_lockfile;
 pub mod fix;
 pub mod github_facts;
