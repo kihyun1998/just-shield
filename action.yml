@@ -1,6 +1,10 @@
 # just-shield GitHub Action 래퍼 (ADR-0005 단계 ②).
 # 엔진/포장 분리(ADR-0004): 로직 없는 얇은 껍데기 — 릴리스 바이너리를 내려받아
 # SHA256SUMS 체크섬 검증을 통과한 경우에만 실행한다. 검증 실패 = 즉시 실패.
+#
+# 진입점이 node인 이유: observe 모드는 "잡 끝에 보고"가 필요한데 composite 액션엔
+# 잡 종료 훅(post)이 없다. index.js는 bash를 부르는 디스패처일 뿐 — npm 의존 0,
+# 판정 로직은 전부 Rust 바이너리에 있다.
 name: just-shield
 description: "GitHub Actions 공급망 검사 — 워크플로가 받아 쓰는 액션이 진짜인지, 오염됐을 때 덜 털리는 구조인지 실행 전에 검사합니다"
 author: kihyun1998
@@ -8,6 +12,9 @@ branding:
   icon: shield
   color: green
 inputs:
+  mode:
+    description: "scan(섭취 전 검사, 기본) | observe(잡 통신 관찰 — Linux 러너, 잡 끝에 보고·egress.lock 대조)"
+    default: "scan"
   path:
     description: "검사할 저장소 경로"
     default: "."
@@ -30,16 +37,6 @@ inputs:
     description: "내려받을 just-shield 릴리스 태그 — 기본값은 핀 고정된 검증 릴리스"
     default: "v0.1.4"
 runs:
-  using: composite
-  steps:
-    - name: 바이너리 다운로드 → 체크섬 검증 → 검사 실행
-      shell: bash
-      env:
-        JS_VERSION: ${{ inputs.version }}
-        JS_PATH: ${{ inputs.path }}
-        JS_STRICT: ${{ inputs.strict }}
-        JS_ONLINE: ${{ inputs.online }}
-        JS_FORMAT: ${{ inputs.format }}
-        JS_COOLDOWN: ${{ inputs.cooldown-days }}
-        JS_OUTPUT: ${{ inputs.output-file }}
-      run: bash "${{ github.action_path }}/scripts/run.sh"
+  using: node24
+  main: index.js
+  post: index.js
