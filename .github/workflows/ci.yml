@@ -32,3 +32,13 @@ jobs:
       - uses: ./
         with:
           strict: true
+  # v2 유출 정책층 e2e (채점표 ②, 이슈 #46) — 관찰자→기록→판정 사슬을
+  # 진짜 ubuntu 러너에서 연결한다. 공격 경로(미등재 조회 🔴)·양성 경로(등재만 통과)·
+  # fail-open(관찰자 종료 후에도 DNS 동작)을 매 PR 증명한다.
+  egress-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: sudo apt-get update && sudo apt-get install -y dnsutils
+      - run: cargo build --release
+      - run: bash tests/e2e/egress-e2e.sh target/release/just-shield
