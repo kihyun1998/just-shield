@@ -23,6 +23,13 @@ scoop install just-shield
 
 직접 내려받으려면 [릴리스 페이지](https://github.com/kihyun1998/just-shield/releases/latest)에서 플랫폼에 맞는 아카이브를 받는다. Linux 바이너리는 musl 정적 링크라 시스템 라이브러리 의존이 없다.
 
+컨테이너 기반 CI는 ghcr.io 이미지를 쓴다 — `FROM scratch`에 정적 바이너리 하나뿐인 수 MB 이미지다 (linux amd64·arm64). 참조는 반드시 다이제스트로 핀 고정한다(우리 R4 규칙 그대로) — 각 릴리스의 다이제스트는 릴리스 노트에 기록된다:
+
+```bash
+docker run --rm -v "$PWD:/work" \
+  ghcr.io/kihyun1998/just-shield@sha256:<릴리스 노트의 다이제스트> scan /work --strict
+```
+
 | 플랫폼 | 파일 |
 |--------|------|
 | Linux x86_64 | `just-shield-<버전>-x86_64-unknown-linux-musl.tar.gz` |
