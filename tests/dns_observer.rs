@@ -91,11 +91,11 @@ fn relay_records_domain_and_forwards_response() {
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut content = String::new();
     while Instant::now() < deadline {
-        if let Ok(c) = std::fs::read_to_string(&record) {
-            if c.contains("crates.io") {
-                content = c;
-                break;
-            }
+        if let Ok(c) = std::fs::read_to_string(&record)
+            && c.contains("crates.io")
+        {
+            content = c;
+            break;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
