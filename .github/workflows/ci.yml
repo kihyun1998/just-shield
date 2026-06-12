@@ -61,3 +61,17 @@ jobs:
           test -s "$rec" || { echo "기록이 비었습니다 — 관찰자가 사용자 스텝을 못 봤습니다" >&2; exit 1; }
           grep -q "crates.io" "$rec" || { echo "기록에 crates.io가 없습니다:" >&2; cat "$rec" >&2; exit 1; }
           echo "✅ 관찰자가 사용자 스텝의 DNS(crates.io)를 기록했다"
+  # dogfood — 우리가 1번 사용자가 되어 우리 액션을 observe로 쓰고, egress.lock에
+  # 잠긴 채 돈다 (이슈 #48). 잡 이름 'dogfood-egress'가 egress.lock의 구획 이름이다.
+  # 미등재 목적지와 통신하면 이 잡이 빨간불 — 우리 알람을 우리가 매 PR 검증한다.
+  dogfood-egress:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: kihyun1998/just-shield@660c8a7f21e5c27c1568c774accd2e694ca2a048 # v0.2.1
+        with:
+          mode: observe
+      - name: 통제된 통신 (egress.lock에 등재된 곳만)
+        run: curl -sS https://crates.io > /dev/null || true
