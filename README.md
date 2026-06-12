@@ -182,12 +182,26 @@ cooldown-days 14
 - 출력 전체가 스냅숏 테스트(`tests/snapshots/violation.sarif`)로 고정된다
 
 ```yaml
-# GitHub Actions에서 코드 스캐닝으로 업로드하는 예 (Action 래퍼가 이를 내장할 예정)
-- run: just-shield scan . --format sarif > results.sarif || true
-- uses: github/codeql-action/upload-sarif@<커밋 SHA>  # 버전 주석
-  with:
-    sarif_file: results.sarif
+# PR마다 검사 → 위반을 PR 코드 줄 주석으로 표시 (전체 동작 예: just-shield-demo 저장소)
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # SARIF 업로드에 필요
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: kihyun1998/just-shield@066f5f60ce9611e71b86043668a763f0e84fdab9 # v0.1.3
+        with:
+          format: sarif
+          output-file: results.sarif
+      - uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        if: always() # 위반으로 scan이 실패해도 결과는 업로드
+        with:
+          sarif_file: results.sarif
 ```
+
+실제 동작은 [just-shield-demo](https://github.com/kihyun1998/just-shield-demo)에서 볼 수 있다 — 일부러 취약하게 만든 워크플로를 추가하는 [데모 PR](https://github.com/kihyun1998/just-shield-demo/pull/1)에 경고가 줄 단위로 달려 있다.
 
 ## 개발
 
