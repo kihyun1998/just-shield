@@ -13,3 +13,7 @@
 # 2025-03 tj-actions/changed-files 태그 하이재킹 — 전체 버전 태그가 이 악성 커밋으로
 # 이동되어 러너 메모리의 시크릿을 로그로 덤프함. 2만+ 저장소 노출.
 tj-actions/changed-files@0e58ed8671d6b60d0890c21b07f8835ace038e67 CVE-2025-30066 태그 하이재킹으로 주입된 악성 커밋 (시크릿 덤프)
+
+# 2025-03-11 reviewdog/action-setup v1 태그 오염 (18:42~20:31 UTC) — tj-actions 사건의
+# 선행 공격. 시크릿을 워크플로 로그로 덤프. CISA KEV 등재 (GHSA-qmg3-hpqr-gqvc).
+reviewdog/action-setup@f0d342d24037bb11d26b9bd8496e0808ba32e9ec CVE-2025-30154 v1 태그 오염으로 주입된 악성 커밋 (시크릿 덤프)
