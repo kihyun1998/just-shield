@@ -19,7 +19,8 @@
             { "id": "R8", "shortDescription": { "text": "위험 트리거(pull_request_target 등)와 외부 PR 체크아웃 조합" } },
             { "id": "R9", "shortDescription": { "text": "공개 권고에 악성으로 등재된 버전/커밋 사용" } },
             { "id": "R10", "shortDescription": { "text": "발행 후 쿨다운(검증 기간) 미경과 참조" } },
-            { "id": "LOCK", "shortDescription": { "text": "shield.lock 박제본 대비 태그 이동" } }
+            { "id": "LOCK", "shortDescription": { "text": "shield.lock 박제본 대비 태그 이동" } },
+            { "id": "EGRESS", "shortDescription": { "text": "잠근 잡이 egress.lock에 없는 목적지를 조회 — 유출 신호" } }
           ]
         }
       },

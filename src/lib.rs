@@ -5,9 +5,11 @@
 
 pub mod advisory;
 pub mod config;
+pub mod egress_lockfile;
 pub mod fix;
 pub mod github_facts;
 pub mod lockfile;
+pub mod observe;
 pub mod report;
 pub mod rules;
 pub mod suppress;

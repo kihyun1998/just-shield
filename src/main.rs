@@ -6,23 +6,29 @@ use std::process::ExitCode;
 
 struct Cli {
     command: Option<String>,
+    /// `observe`의 하위 동작 (예: report).
+    subaction: Option<String>,
     root: String,
     strict: bool,
     online: bool,
     dry_run: bool,
     cooldown_days: Option<u32>,
     format: String,
+    /// `observe report`가 읽을 관찰 기록 파일.
+    record: Option<String>,
 }
 
 fn parse_args(args: &[String]) -> Result<Cli, String> {
     let mut cli = Cli {
         command: None,
+        subaction: None,
         root: ".".to_string(),
         strict: false,
         online: false,
         dry_run: false,
         cooldown_days: None,
         format: "text".to_string(),
+        record: None,
     };
     let mut positional = Vec::new();
     let mut i = 0;
@@ -46,6 +52,14 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
                     .ok_or("--format 뒤에 값이 필요합니다 (text|json|sarif)")?
                     .clone();
             }
+            "--record" => {
+                i += 1;
+                cli.record = Some(
+                    args.get(i)
+                        .ok_or("--record 뒤에 기록 파일 경로가 필요합니다")?
+                        .clone(),
+                );
+            }
             a if a.starts_with("--format=") => cli.format = a["--format=".len()..].to_string(),
             a if a.starts_with("--") => return Err(format!("알 수 없는 옵션: {a}")),
             a => positional.push(a.to_string()),
@@ -59,7 +73,14 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
         ));
     }
     cli.command = positional.first().cloned();
-    if let Some(p) = positional.get(1) {
+    // observe는 하위 동작을 하나 더 받는다: observe report [경로]
+    let root_index = if cli.command.as_deref() == Some("observe") {
+        cli.subaction = positional.get(1).cloned();
+        2
+    } else {
+        1
+    };
+    if let Some(p) = positional.get(root_index) {
         cli.root = p.clone();
     }
     Ok(cli)
@@ -99,6 +120,52 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("observe") => match cli.subaction.as_deref() {
+            // 기록 + (있다면) egress.lock → 판정. 관찰과 판정은 기록 파일로 분리된다 (ADR-0006).
+            Some("report") => {
+                let Some(record_path) = &cli.record else {
+                    eprintln!("오류: observe report에는 --record <기록 파일>이 필요합니다");
+                    return usage();
+                };
+                let content = match std::fs::read_to_string(record_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("오류: 기록 파일을 읽을 수 없습니다 — {e}");
+                        return ExitCode::from(2);
+                    }
+                };
+                let record = match just_shield::observe::parse_record(&content) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("오류: 기록 파싱 실패 — {e}");
+                        return ExitCode::from(2);
+                    }
+                };
+                let lock = match just_shield::egress_lockfile::load(Path::new(&cli.root)) {
+                    Ok(l) => l,
+                    Err(e) => {
+                        eprintln!("오류: {e}");
+                        return ExitCode::from(2);
+                    }
+                };
+                let outcome = just_shield::observe::verdict(&record, lock.as_ref());
+                // 판정은 기존 보고 경로로 합류한다 — json/sarif·종료 코드가 그대로 동작.
+                let result = just_shield::ScanResult {
+                    workflows_scanned: 0,
+                    findings: outcome.findings.clone(),
+                    suppressed: Vec::new(),
+                    online_rules_skipped: false,
+                };
+                let output = match cli.format.as_str() {
+                    "json" => just_shield::report::render_json(&result, cli.strict),
+                    "sarif" => just_shield::report::render_sarif(&result),
+                    _ => just_shield::observe::render_text(&outcome),
+                };
+                print!("{output}");
+                ExitCode::from(just_shield::report::exit_code(&result, cli.strict))
+            }
+            _ => usage(),
+        },
         Some("lock") => match just_shield::lock(Path::new(&cli.root), &GitRemote) {
             Ok(outcome) => {
                 println!("shield.lock 박제 완료 — {}건 기록", outcome.written);
@@ -145,7 +212,8 @@ fn main() -> ExitCode {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--cooldown-days N] [--format text|json|sarif]"
+        "사용법: just-shield <scan|lock|fix> [저장소 경로] [--strict] [--online] [--dry-run] [--cooldown-days N] [--format text|json|sarif]\n\
+         \u{20}      just-shield observe report [저장소 경로] --record <기록 파일> [--format text|json|sarif]"
     );
     ExitCode::from(2)
 }
