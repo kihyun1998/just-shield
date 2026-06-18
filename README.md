@@ -27,7 +27,7 @@ scoop install just-shield
 
 ```bash
 docker run --rm -v "$PWD:/work" \
-  ghcr.io/kihyun1998/just-shield@sha256:df63251c4709fee560343fc2f1b4935b8af3917a6bc2ea674ab457b2c206f8e2 scan /work --strict  # v0.2.1
+  ghcr.io/kihyun1998/just-shield@sha256:c42ee15783599aba3e8b4693ab13be1004bbc2b078196625f2ba3599104ec316 scan /work --strict  # v0.3.0
 ```
 
 | 플랫폼 | 파일 |
