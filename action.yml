@@ -29,7 +29,7 @@ inputs:
     default: ""
   version:
     description: "내려받을 just-shield 릴리스 태그 — 기본값은 핀 고정된 검증 릴리스"
-    default: "v0.2.1"
+    default: "v0.3.0"
 runs:
   using: composite
   steps:
