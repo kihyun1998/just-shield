@@ -1,5 +1,0 @@
-# 양성: 잠근 release 잡이 등재된 곳만(와일드카드 매치 포함) 조회.
-job release
-ghcr.io
-crates.io
-abc123xyz.blob.core.windows.net

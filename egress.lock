@@ -1,5 +1,0 @@
-# egress.lock — 잡별 허용 통신 목적지 (just-shield observe 모드, ADR-0006).
-# 우리 자신이 1번 사용자 — dogfood-egress 잡이 관찰한 도메인을 박제했다 (이슈 #48).
-# 여기 적힌 잡만 대조 대상(미등재 = 🔴). 정당하게 통신처가 늘면 한 줄 추가 PR.
-[dogfood-egress]
-crates.io

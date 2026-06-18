@@ -166,10 +166,6 @@ const RULE_METADATA: &[(&str, &str)] = &[
     ("R9", "공개 권고에 악성으로 등재된 버전/커밋 사용"),
     ("R10", "발행 후 쿨다운(검증 기간) 미경과 참조"),
     ("LOCK", "shield.lock 박제본 대비 태그 이동"),
-    (
-        "EGRESS",
-        "잠근 잡이 egress.lock에 없는 목적지를 조회 — 유출 신호",
-    ),
 ];
 
 fn sarif_level(s: Severity) -> &'static str {

@@ -1,5 +1,0 @@
-# 테스트 픽스처 — release 잡만 잠근 락.
-[release]
-ghcr.io
-crates.io
-*.blob.core.windows.net
