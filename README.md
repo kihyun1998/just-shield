@@ -67,8 +67,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      # 우리 액션도 우리 규칙(R1)대로 커밋 SHA로 핀 고정해서 쓰라
-      - uses: kihyun1998/just-shield@<40자리 커밋 SHA>  # 릴리스 태그의 커밋
+      # 우리 액션도 우리 규칙(R1)대로 커밋 SHA로 핀 고정해서 쓴다 — 최신 SHA는 릴리스 노트의 복붙용 한 줄을 그대로 쓰라
+      - uses: kihyun1998/just-shield@83d4a4aa7779a567b499958832e6f16fbe8d04ee # v0.2.1
         with:
           strict: true
 ```
@@ -232,7 +232,7 @@ jobs:
       security-events: write # SARIF 업로드에 필요
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: kihyun1998/just-shield@066f5f60ce9611e71b86043668a763f0e84fdab9 # v0.1.3
+      - uses: kihyun1998/just-shield@83d4a4aa7779a567b499958832e6f16fbe8d04ee # v0.2.1
         with:
           format: sarif
           output-file: results.sarif
