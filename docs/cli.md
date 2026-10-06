@@ -191,4 +191,4 @@ cooldown-days 14
 
 - 처음부터 따라 하기 → [단계별 적용 가이드](usage.md)
 - 규칙 R1~R10·LOCK이 각각 무엇을 잡는지 → [README 규칙표](../README.md#검사-규칙-구현-현황)
-- 설계 배경·용어 → [CONTEXT.md](../CONTEXT.md) · [docs/adr/](adr/)
+- 설계 배경·용어 → [GLOSSARY.md](../GLOSSARY.md) · [docs/adr/](adr/)

@@ -7,7 +7,7 @@ use crate::uses_ref::{self, RefKind, UsesRef};
 use crate::workflow::{UsesEntry, WorkflowDoc};
 use std::path::Path;
 
-/// 심각도 등급 (CONTEXT.md). 🔴는 사실 규칙만 낼 수 있다 (ADR-0002).
+/// 심각도 등급 (GLOSSARY.md). 🔴는 사실 규칙만 낼 수 있다 (ADR-0002).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     /// 🔴 실제 공격 경로가 열려 있음 — 빌드 실패.
@@ -416,7 +416,7 @@ pub fn check_r5(
 
 /// R10 — 쿨다운: 발행된 지 기준 일수가 안 된 참조 경고 (`--online`, 🟡).
 ///
-/// 제로데이를 탐지하는 게 아니라 미검증 기간을 회피하는 전략이다 (CONTEXT.md).
+/// 제로데이를 탐지하는 게 아니라 미검증 기간을 회피하는 전략이다 (GLOSSARY.md).
 /// 시각을 알 수 없는 참조는 판정하지 않는다 (추측 금지).
 pub fn check_r10(
     file: &Path,
@@ -490,7 +490,7 @@ pub fn check_lock(
         else {
             continue;
         };
-        // 퍼스트파티는 섭취 검증 대상이 아니다 (CONTEXT.md) — LOCK도 Tier 1 규칙.
+        // 퍼스트파티는 섭취 검증 대상이 아니다 (GLOSSARY.md) — LOCK도 Tier 1 규칙.
         if ctx.classify(&owner_repo) == Trust::FirstParty {
             continue;
         }

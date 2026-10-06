@@ -2,7 +2,7 @@
 
 CI 파이프라인이 받아 쓰는 GitHub Action이 **진짜인지, 오염됐을 때 덜 털리는 구조인지**를 실행 전에 검사하는 CLI. 북극성은 CI 자격증명 탈취 방지다 — TeamPCP(UNC6780) 캠페인을 대표 검증 시나리오로 사용한다.
 
-의존 크레이트 0개, 기본 완전 오프라인. 설계 배경은 [CONTEXT.md](CONTEXT.md)와 [docs/adr/](docs/adr/)에 있다.
+의존 크레이트 0개, 기본 완전 오프라인. 설계 배경은 [GLOSSARY.md](GLOSSARY.md)와 [docs/adr/](docs/adr/)에 있다.
 
 ## 설치
 

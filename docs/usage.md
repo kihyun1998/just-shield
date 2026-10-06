@@ -14,7 +14,7 @@ CI 파이프라인은 남이 만든 GitHub Action을 받아서 실행합니다. 
 
 just-shield는 워크플로 파일(`.github/workflows/*.yml`)을 **실행 전에** 읽어서, 받아 쓰는 Action들이 진짜인지·오염됐을 때 덜 털리는 구조인지 검사합니다. 의존 크레이트 0개, 기본 완전 오프라인입니다.
 
-배경 개념(공급망 공격, 섭취 전 검증, 태그 하이재킹 등)은 [CONTEXT.md](../CONTEXT.md)에 정리돼 있습니다.
+배경 개념(공급망 공격, 섭취 전 검증, 태그 하이재킹 등)은 [GLOSSARY.md](../GLOSSARY.md)에 정리돼 있습니다.
 
 ---
 
@@ -223,4 +223,4 @@ cooldown-days 14
 
 - 옵션·종료 코드·출력 형식의 정확한 정의 → [CLI 레퍼런스](cli.md)
 - 규칙 10개가 각각 무엇을 잡는지 → [README 규칙표](../README.md#검사-규칙-구현-현황)
-- 왜 이런 설계인지 → [CONTEXT.md](../CONTEXT.md) · [docs/adr/](adr/)
+- 왜 이런 설계인지 → [GLOSSARY.md](../GLOSSARY.md) · [docs/adr/](adr/)
